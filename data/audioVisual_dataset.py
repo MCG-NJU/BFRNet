@@ -53,85 +53,6 @@ def load_frame(clip_path):
     return frame
 
 
-def get_mouthroi_audio_pair_on_integral_word(second, anno_path, mouthroi, audio, window, num_of_mouthroi_frames, audio_sampling_rate):
-    # 计算从每个单词开始的<=2.56s的最大持续时间: durations
-    with open(anno_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()[4:]
-    number = len(lines)
-    starts = [float(line.split(' ')[1]) for line in lines]
-    ends = [float(line.split(' ')[2]) for line in lines]
-    durations = []
-    pairs = []
-    e = 0
-    for s in range(number):
-        while e < number and ends[e] - starts[s] < second:
-            e += 1
-        e -= 1
-        pairs.append([s, e])
-        durations.append(ends[e] - starts[s])
-    # 以长度为正相关概率来选择start-end pair
-    # probs = durations / sum(durations)
-    durations = np.array(durations)
-    probs = np.div(durations, np.sum(durations))
-    index = random.choices(list(range(number)), weights=probs)
-    # dur =
-
-    audio_start = randrange(0, audio.shape[0] - window + 1)
-    audio_sample = audio[audio_start:(audio_start+window)]
-    frame_index_start = int(round(audio_start / audio_sampling_rate * 25))
-    mouthroi = mouthroi[frame_index_start:(frame_index_start + num_of_mouthroi_frames), :, :]
-    return mouthroi, audio_sample
-
-
-def get_mouthroi_audio_text_random(lines, mouthroi, audio, window, num_of_mouthroi_frames, audio_sampling_rate, num_classes):
-    # based on the premise: duration of the video is larger than 2.56s
-    starts, ends, words = [], [], []
-    for line in lines:
-        tokens = line.strip().split(' ')
-        starts.append(float(tokens[1]))
-        ends.append(float(tokens[2]))
-        words.append(tokens[0])
-
-    # audio sample
-    audio_start = randrange(0, audio.shape[0] - window + 1)
-    audio_end = audio_start + window
-    audio_sample = audio[audio_start:audio_end]
-
-    # start time
-    start_time = audio_start / audio_sampling_rate
-    end_time = audio_end / audio_sampling_rate
-
-    # iou >= 0.5, add into word list
-    sindex = bisect.bisect_left(starts, start_time)
-    if sindex > 0 and start_time < ends[sindex - 1]:
-        if (ends[sindex - 1] - start_time) / (ends[sindex - 1] - starts[sindex - 1]) >= 0.5:
-            sindex = sindex - 1
-    eindex = bisect.bisect_right(ends, end_time)
-    if eindex < len(words) and end_time > starts[eindex]:
-        if (end_time - starts[eindex]) / (ends[eindex] - starts[eindex]) < 0.5:
-            eindex = eindex - 1
-    words = words[sindex:eindex]
-
-    # translate language to index
-    sentence = ' '.join(words)
-    if num_classes == 32:
-        trgt = [charToIx32["<s>"]] + [charToIx32[char] if char in charToIx32 else charToIx32['<unk>'] for char in sentence] + [charToIx32["</s>"]]
-    else:  # num_classes = 40
-        trgt = [charToIx40[char] for char in sentence] + [charToIx40["<EOS>"]]
-    trgt = np.array(trgt)
-    trgtLen = len(trgt)
-
-    # frame sample
-    frame_index_start = int(round(start_time * 25))
-    frame_index_end = frame_index_start + num_of_mouthroi_frames
-    if frame_index_end > len(mouthroi):
-        rollback = frame_index_end - len(mouthroi)
-        frame_index_start -= rollback
-        frame_index_end -= rollback
-    mouthroi = mouthroi[frame_index_start:frame_index_end, :, :]
-    return mouthroi, audio_sample, trgt, trgtLen
-
-
 def get_mouthroi_audio(mouthroi, audio, window, num_of_mouthroi_frames, audio_sampling_rate):
     # audio sample
     audio_start = randrange(0, audio.shape[0] - window + 1)
@@ -231,24 +152,6 @@ class AudioVisualDataset(BaseDataset):
         audio = audio * (random.random() * 1.5 + 0.5)  # 0.5 - 2.0
         return audio
 
-    # def _audio_augment(self, audio):
-    #     audio = audio * (random.random() * 0.2 + 0.9)  # 0.9 - 1.1
-    #
-    #     noise_name = np.random.choice(self.noise_path)
-    #     with io.BytesIO(self.client.get(noise_name)) as nf:
-    #         _, noise = wavfile.read(nf)
-    #     noise = noise / 32768
-    #     start = randrange(0, len(noise) - self.audio_window + 1)
-    #     end = start + self.audio_window
-    #     noise = noise[start:end]
-    #     noise = normalize(noise, desired_rms=0.01)
-    #
-    #     audio = audio + noise
-    #     audio[audio > 1.] = 1.
-    #     audio[audio < -1.] = -1.
-    #
-    #     return audio
-
     def _get_one(self, index):
         # paths
         video_path = os.path.join(self.opt.mp4_root, self.videos_path[index] + '.mp4')
@@ -285,7 +188,7 @@ class AudioVisualDataset(BaseDataset):
             audio = self._audio_augment(audio)
 
         frame_list = []
-        for i in range(self.opt.number_of_identity_frames):
+        for i in range(self.opt.number_of_face_frames):
             try:
                 frame = load_frame(io.BytesIO(self.client.get(video_path)))
             except:
