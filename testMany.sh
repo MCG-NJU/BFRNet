@@ -45,7 +45,7 @@ srun -p ${PARTITION} \
     --kill-on-bad-exit=1 \
     --quotatype=auto \
     ${SRUN_ARGS} \
-    python -u testMany2.py \
+    python -u testMany.py \
     --name ${JOB_NAME} \
     --ceph ${ceph} \
     --test_file ${test_file} \

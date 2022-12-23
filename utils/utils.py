@@ -1,23 +1,14 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 import os
-import shutil
 import librosa
 import torch
 import cv2
 import numpy as np
-# from torch._six import container_abcs, string_classes, int_classes
 import json
 import shutil
 import matplotlib.pyplot as plt
 plt.switch_backend('Agg') 
 plt.ioff()
+
 
 def warpgrid(bs, HO, WO, warp=True):
     # meshgrid

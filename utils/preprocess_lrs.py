@@ -1,29 +1,13 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-# A simple implementation of face tracking leveraging a face detector. Using other advanced face tracker of your choice can potentially lead to better separation results.
-
-# 检测视频采样率是否是25fps,如果不是则重新采样,并且重新提取audio
-# detectFace并cropFace,生成npz文件
-
-
 import os
 import io
 import os.path as osp
 import argparse
-# import utils
 import face_alignment
 from facenet_pytorch import MTCNN
 import torch
-import numpy as np
-import mmcv, cv2
+import mmcv
 from mmcv import ProgressBar
-from PIL import Image, ImageDraw
+from PIL import Image
 from collections import deque
 from petrel_client.client import Client
 

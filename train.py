@@ -1,14 +1,5 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 import os
 import os.path as osp
-import time
 from mmcv import ProgressBar
 import subprocess
 from torch_mir_eval import bss_eval_sources
@@ -18,22 +9,16 @@ import math
 from collections import defaultdict
 import warnings
 import platform
-import pickle
 import time
 
 from options.train_options import TrainOptions
-from utils import utils
-from utils.text_decoder import ctc_greedy_decode, compute_cer
 
 from data.data_loader import CreateDataLoader
-from data.audioVisual_dataset import charToIx32, charToIx40, IxTochar32
 from models.models import ModelBuilder
 from models.audioVisual_model import AudioVisualModel
 from models import criterion
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP

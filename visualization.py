@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 import io
 import os
 import cv2
@@ -19,7 +12,6 @@ import librosa
 import librosa.display
 from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from mmcv import ProgressBar
 from petrel_client.client import Client
 

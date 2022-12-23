@@ -1,16 +1,5 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under: https://github.com/mpc001/Lipreading_using_Temporal_Convolutional_Networks/blob/master/LICENSE
-
-# Ack: Code taken from Pingchuan Ma: https://github.com/mpc001/Lipreading_using_Temporal_Convolutional_Networks
-
 import torch
 import torch.nn as nn
-from torch.nn.utils import weight_norm
-import pdb
 
 
 """Implements Temporal Convolutional Network (TCN)

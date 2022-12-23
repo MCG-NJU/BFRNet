@@ -1,22 +1,15 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
-# Acknowledgement: Codes are borrowed from Bruno Korbar
-
 import av
 import gc
 import warnings
 
+
 _CALLED_TIMES = 0
 _GC_COLLECTION_INTERVAL = 20
 
+
 # remove warnings
 av.logging.set_level(av.logging.ERROR)
+
 
 class VideoReader(object):
     """
