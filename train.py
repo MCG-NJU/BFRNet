@@ -178,8 +178,7 @@ def create_model(opt):
     lip_net = builder.build_lipnet(
         opt=opt,
         config_path=opt.lipnet_config_path,
-        weights=opt.weights_lipnet,
-        extract_feats=opt.lip_feature)
+        weights=opt.weights_lipnet)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')
         lip_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))

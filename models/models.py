@@ -27,7 +27,7 @@ class ModelBuilder:
         return net
 
     # builder for lipreading stream
-    def build_lipnet(self, opt, config_path, weights='', extract_feats=False):
+    def build_lipnet(self, opt, config_path, weights='', extract_feats=True):
         if os.path.exists(config_path):
             args_loaded = load_json(config_path)
             if opt.rank == 0:

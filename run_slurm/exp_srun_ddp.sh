@@ -89,7 +89,6 @@ hop_size=${hop_size:-160}
 window_size=${window_size:-400}
 n_fft=${n_fft:-512}
 tensorboard=${tensorboard:-"true"}
-lipreading_extract_feature=${lipreading_extract_feature:-"true"}
 
 
 cd ../
@@ -169,7 +168,6 @@ srun -p ${PARTITION} \
     --window_size ${window_size} \
     --n_fft ${n_fft} \
     --tensorboard ${tensorboard} \
-    --lipreading_extract_feature ${lipreading_extract_feature} \
     --weighted_mask_loss \
     --visual_pool maxpool \
     --audio_pool maxpool \

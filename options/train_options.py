@@ -40,7 +40,6 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--refine_kernel_size', type=int, choices=[1, 3], help="the kernel size of the av-convolution in refine module")
 
 		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lip', 'face', 'both'), help='type of visual feature to use')
-		self.parser.add_argument('--lip_feature', type=str, choices=["true", "false"], default="true", help="whether use features extracted from 3d conv")
 		self.parser.add_argument('--number_of_identity_frames', type=int, default=1, help="number of identity frames to use")
 		self.parser.add_argument('--compression_type', type=str, default='none', choices=('hyperbolic', 'sigmoidal', 'none'), help="type of compression on masks")
 		self.parser.add_argument('--hyperbolic_compression_K', type=int, default=10, help="hyperbolic compression K")
