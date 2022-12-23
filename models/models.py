@@ -9,8 +9,8 @@ from utils.utils import load_json
 
 
 class ModelBuilder:
-    # builder for facial attributes analysis stream
-    def build_facial(self, opt, pool_type='maxpool', input_channel=3, fc_out=512, with_fc=False, weights=''):
+    # builder for face net
+    def build_facenet(self, opt, pool_type='maxpool', input_channel=3, fc_out=512, with_fc=False, weights=''):
         pretrained = False
         original_resnet = torchvision.models.resnet18(pretrained)
         net = Resnet18(original_resnet, pool_type=pool_type, with_fc=with_fc, fc_in=512, fc_out=fc_out)
@@ -18,7 +18,7 @@ class ModelBuilder:
         if len(weights) > 0 and os.path.exists(weights):
             if opt.rank == 0:
             # if dist.get_rank() == 0:
-                print(f'Loading weights for facial attributes analysis stream: {weights}')
+                print(f'Loading weights for face net: {weights}')
             pretrained_state = torch.load(weights, map_location='cpu')
             model_state = net.state_dict()
             pretrained_state = { k:v for k,v in pretrained_state.items() if k in model_state and v.size() == model_state[k].size() }
@@ -27,7 +27,7 @@ class ModelBuilder:
         return net
 
     # builder for lipreading stream
-    def build_lipreadingnet(self, opt, config_path, weights='', extract_feats=False):
+    def build_lipnet(self, opt, config_path, weights='', extract_feats=False):
         if os.path.exists(config_path):
             args_loaded = load_json(config_path)
             if opt.rank == 0:

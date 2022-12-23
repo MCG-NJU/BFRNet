@@ -165,45 +165,45 @@ def _init():
 ################ construct model, optimizer, loss
 def create_model(opt):
     if opt.visual_feature_type == 'both':
-        visual_feature_dim = 512 + opt.identity_feature_dim
-    elif opt.visual_feature_type == 'lipmotion':
+        visual_feature_dim = 512 + opt.face_feature_dim
+    elif opt.visual_feature_type == 'lip':
         visual_feature_dim = 512
-    else:  # identity
-        visual_feature_dim = opt.identity_feature_dim
+    else:  # face
+        visual_feature_dim = opt.face_feature_dim
 
     # Network Builders
     builder = ModelBuilder()
     nets = []
 
-    net_lipreading = builder.build_lipreadingnet(
+    lip_net = builder.build_lipnet(
         opt=opt,
-        config_path=opt.lipreading_config_path,
-        weights=opt.weights_lipreadingnet,
-        extract_feats=opt.lipreading_extract_feature)
-    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'lipreading_latest.pth')):
-        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'lipreading_latest.pth')
-        net_lipreading.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
+        config_path=opt.lipnet_config_path,
+        weights=opt.weights_lipnet,
+        extract_feats=opt.lip_feature)
+    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')):
+        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')
+        lip_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         if opt.rank == 0:
-            print(f'resume net_lipreading from {ckpt_path}')
-    nets.append(net_lipreading)
+            print(f'resume lip_net from {ckpt_path}')
+    nets.append(lip_net)
 
-    # if identity feature dim is not 512, for resnet reduce dimension to this feature dim
-    if opt.identity_feature_dim != 512:
+    # if face feature dim is not 512, for resnet reduce dimension to this feature dim
+    if opt.face_feature_dim != 512:
         opt.with_fc = True
     else:
         opt.with_fc = False
-    net_facial_attribtes = builder.build_facial(
+    face_net = builder.build_facenet(
         opt=opt,
         pool_type=opt.visual_pool,
-        fc_out=opt.identity_feature_dim,
+        fc_out=opt.face_feature_dim,
         with_fc=opt.with_fc,
-        weights=opt.weights_facial)
-    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'facial_latest.pth')):
-        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'facial_latest.pth')
-        net_facial_attribtes.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
+        weights=opt.weights_facenet)
+    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'facenet_latest.pth')):
+        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'facenet_latest.pth')
+        face_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         if opt.rank == 0:
-            print(f'resume net_facial_attribtes from {ckpt_path}')
-    nets.append(net_facial_attribtes)
+            print(f'resume face_net from {ckpt_path}')
+    nets.append(face_net)
 
     net_unet = builder.build_unet(
         opt=opt,
@@ -240,9 +240,9 @@ def create_model(opt):
 
 def create_optimizer(model, opt):
     model2 = model.module
-    net_lipreading, net_facial_attribtes, net_unet, net_refine = model2.net_lipreading, model2.net_identity, model2.net_unet, model2.net_refine
-    param_groups = [{'params': net_lipreading.parameters(), 'lr': opt.lr_lipreading},
-                    {'params': net_facial_attribtes.parameters(), 'lr': opt.lr_facial_attributes},
+    lip_net, face_net, net_unet, net_refine = model2.lip_net, model2.face_net, model2.net_unet, model2.net_refine
+    param_groups = [{'params': lip_net.parameters(), 'lr': opt.lr_lipnet},
+                    {'params': face_net.parameters(), 'lr': opt.lr_facenet},
                     {'params': net_unet.parameters(), 'lr': opt.lr_unet},
                     {'params': net_refine.parameters(), 'lr': opt.lr_refine}]
     if opt.optimizer == 'sgd':
@@ -469,8 +469,7 @@ def main():
     # create model
     model = create_model(opt)
     model2 = model.module
-    net_lipreading, net_facial_attribtes, net_unet, net_refine = model2.net_lipreading, model2.net_identity, \
-                                                                 model2.net_unet, model2.net_refine
+    lip_net, face_net, net_unet, net_refine = model2.lip_net, model2.face_net, model2.net_unet, model2.net_refine
 
     # create optimizer
     optimizer = create_optimizer(model, opt)
@@ -588,9 +587,9 @@ def main():
                 batch_sisnr_loss = []
 
                 if opt.tensorboard:
-                    opt.writer.add_scalar('data/lipreading_lr', optimizer.state_dict()['param_groups'][0]['lr'],
+                    opt.writer.add_scalar('data/lipnet_lr', optimizer.state_dict()['param_groups'][0]['lr'],
                                           cumsum_batch)
-                    opt.writer.add_scalar('data/identity_lr', optimizer.state_dict()['param_groups'][1]['lr'],
+                    opt.writer.add_scalar('data/face_lr', optimizer.state_dict()['param_groups'][1]['lr'],
                                           cumsum_batch)
                     opt.writer.add_scalar('data/unet_lr', optimizer.state_dict()['param_groups'][2]['lr'], cumsum_batch)
                     opt.writer.add_scalar('data/refine_lr', optimizer.state_dict()['param_groups'][3]['lr'],
@@ -619,15 +618,15 @@ def main():
                     best_sdr = val_sdr
                     if opt.rank == 0:
                         print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, batch, val_sdr))
-                        torch.save(net_lipreading.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipreading_best.pth'))
-                        torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_best.pth'))
+                        torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
+                        torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
                         torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
                         torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
 
             if (batch + 1) % opt.save_latest_freq == 0 and opt.rank == 0:
                 print('saving the latest model (epoch %d, batch %d)' % (epoch, batch))
-                torch.save(net_lipreading.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipreading_latest.pth'))
-                torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_latest.pth'))
+                torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
+                torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
                 torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
                 torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
                 ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch, 'batch': batch + 1, 'cumsum_batch': cumsum_batch + 1, 'best_sdr': best_sdr}
@@ -647,8 +646,8 @@ def main():
 
         if opt.rank == 0:  # save latest model for each epoch
             print('saving the latest model (epoch %d)' % epoch)
-            torch.save(net_lipreading.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipreading_latest.pth'))
-            torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_latest.pth'))
+            torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
+            torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
             torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
             torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
             ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch + 1, 'batch': 0, 'cumsum_batch': cumsum_batch, 'best_sdr': best_sdr}
@@ -667,8 +666,8 @@ def main():
                 best_sdr = val_sdr
                 if opt.rank == 0:
                     print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, len(data_loader), val_sdr))
-                    torch.save(net_lipreading.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipreading_best.pth'))
-                    torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_best.pth'))
+                    torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
+                    torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_best.pth'))
                     torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
                     torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
 

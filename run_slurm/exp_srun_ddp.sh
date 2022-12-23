@@ -39,10 +39,10 @@ save_latest_freq=${save_latest_freq:-50}
 validation_on=${validation_on:-"true"}
 validation_freq=${validation_freq:-200}
 
-weights_facial=${weights_facial:-"a"}
+weights_facenet=${weights_facenet:-"a"}
 weights_unet=${weights_unet:-"a"}
 weights_refine=${weights_refine:-"a"}
-weights_lipreadingnet=${weights_lipreadingnet:-"a"}
+weights_lipnet=${weights_lipnet:-"a"}
 weights_vocal=${weights_vocal:-"a"}
 
 use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
@@ -65,8 +65,8 @@ contrast_temp=${contrast_temp:-0.2}
 
 epochs=${epochs:-19}
 lr_steps=${lr_steps:-12 15}
-lr_lipreading=${lr_lipreading:-1e-4}
-lr_facial_attributes=${lr_facial_attributes:-1e-4}
+lr_lipnet=${lr_lipnet:-1e-4}
+lr_facenet=${lr_facenet:-1e-4}
 lr_unet=${lr_unet:-1e-4}
 lr_refine=${lr_refine:-1e-4}
 lr_vocal=${lr_vocal:-1e-4}
@@ -76,7 +76,7 @@ unet_input_nc=${unet_input_nc:-2}
 unet_output_nc=${unet_output_nc:-2}
 
 reliable_face=${reliable_face:-"true"}
-identity_feature_dim=${identity_feature_dim:-128}
+face_feature_dim=${face_feature_dim:-128}
 visual_feature_type=${visual_feature_type:-"both"}
 mask_clip_threshold=${mask_clip_threshold:-5}
 compression_type=${compression_type:-"none"}
@@ -143,20 +143,20 @@ srun -p ${PARTITION} \
     --contrast_temp ${contrast_temp} \
     --epochs ${epochs} \
     --lr_steps ${lr_steps} \
-    --lr_lipreading ${lr_lipreading} \
-    --lr_facial_attributes ${lr_facial_attributes} \
+    --lr_lipnet ${lr_lipnet} \
+    --lr_facenet ${lr_facenet} \
     --lr_unet ${lr_unet} \
     --lr_refine ${lr_refine} \
     --lr_vocal ${lr_vocal} \
-    --weights_facial ${weights_facial} \
+    --weights_facenet ${weights_facenet} \
     --weights_unet ${weights_unet} \
     --weights_refine ${weights_refine} \
-    --weights_lipreadingnet ${weights_lipreadingnet} \
+    --weights_lipnet ${weights_lipnet} \
     --weights_vocal ${weights_vocal} \
     --decay_factor ${decay_factor} \
     --unet_input_nc ${unet_input_nc} \
     --unet_output_nc ${unet_output_nc} \
-    --identity_feature_dim ${identity_feature_dim} \
+    --face_feature_dim ${face_feature_dim} \
     --visual_feature_type ${visual_feature_type} \
     --mask_clip_threshold ${mask_clip_threshold} \
     --compression_type ${compression_type} \
@@ -173,5 +173,5 @@ srun -p ${PARTITION} \
     --weighted_mask_loss \
     --visual_pool maxpool \
     --audio_pool maxpool \
-    --lipreading_config_path configs/lrw_snv1x_tcn2x.json \
+    --lipnet_config_path configs/lrw_snv1x_tcn2x.json \
     |& tee logs.txt

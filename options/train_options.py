@@ -23,24 +23,24 @@ class TrainOptions(BaseOptions):
 		# model arguments
 		self.parser.add_argument('--visual_pool', type=str, default='maxpool', help='avg or max pool for visual stream feature')
 		self.parser.add_argument('--audio_pool', type=str, default='maxpool', help="avg or max pool for audio stream feature")
-		self.parser.add_argument('--weights_facial', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
+		self.parser.add_argument('--weights_facenet', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
 		self.parser.add_argument('--weights_unet', type=str, default='', help="weights for unet")
 		self.parser.add_argument('--weights_refine', type=str, default='', help="weights for refine net")
-		self.parser.add_argument('--weights_lipreadingnet', type=str, default='', help="weights for lipreading net")
+		self.parser.add_argument('--weights_lipnet', type=str, default='', help="weights for lipreading net")
 		self.parser.add_argument('--weights_vocal', type=str, default='', help="weights for vocal net")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
-		self.parser.add_argument('--lipreading_config_path', type=str, default='configs/lrw_snv1x_tcn2x.json', help='path to the config file of lipreading')
-		self.parser.add_argument('--identity_feature_dim', type=int, default=128, help="dimension of identity feature map")
+		self.parser.add_argument('--lipnet_config_path', type=str, default='configs/lrw_snv1x_tcn2x.json', help='path to the config file of lipreading')
+		self.parser.add_argument('--face_feature_dim', type=int, default=128, help="dimension of identity feature map")
 
 		# refine model arguments
 		self.parser.add_argument('--refine_num_layers', type=int, default=1, help="number of the encoder layers in refine model")
 		self.parser.add_argument('--residual_last', type=str, choices=["true", "false"], help="whether to use residual in the last layer of refine model")
 		self.parser.add_argument('--refine_kernel_size', type=int, choices=[1, 3], help="the kernel size of the av-convolution in refine module")
 
-		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lipmotion', 'identity', 'both'), help='type of visual feature to use')
-		self.parser.add_argument('--lipreading_extract_feature', type=str, choices=["true", "false"], default="true", help="whether use features extracted from 3d conv")
+		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lip', 'face', 'both'), help='type of visual feature to use')
+		self.parser.add_argument('--lip_feature', type=str, choices=["true", "false"], default="true", help="whether use features extracted from 3d conv")
 		self.parser.add_argument('--number_of_identity_frames', type=int, default=1, help="number of identity frames to use")
 		self.parser.add_argument('--compression_type', type=str, default='none', choices=('hyperbolic', 'sigmoidal', 'none'), help="type of compression on masks")
 		self.parser.add_argument('--hyperbolic_compression_K', type=int, default=10, help="hyperbolic compression K")
@@ -79,8 +79,8 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--contrast_temp', default=0.2, type=float, help='temperature for NCELoss')
 
 		# optimizer arguments
-		self.parser.add_argument('--lr_lipreading', type=float, default=1e-4, help='learning rate for lipreading stream')
-		self.parser.add_argument('--lr_facial_attributes', type=float, default=1e-5, help='learning rate for identity stream')
+		self.parser.add_argument('--lr_lipnet', type=float, default=1e-4, help='learning rate for lipreading stream')
+		self.parser.add_argument('--lr_facenet', type=float, default=1e-5, help='learning rate for identity stream')
 		self.parser.add_argument('--lr_unet', type=float, default=1e-4, help='learning rate for unet')
 		self.parser.add_argument('--lr_refine', type=float, default=1e-4, help='learning rate for refine net')
 		self.parser.add_argument('--lr_vocal', type=float, default=1e-4, help='learning rate for vocal')

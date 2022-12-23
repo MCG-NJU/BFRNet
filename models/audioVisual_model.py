@@ -10,7 +10,7 @@ class AudioVisualModel(torch.nn.Module):
     def __init__(self, nets, opt):
         super(AudioVisualModel, self).__init__()
         self.opt = opt
-        self.net_lipreading, self.net_identity, self.net_unet, self.net_refine = nets[0], nets[1], nets[2], nets[3]
+        self.lip_net, self.face_net, self.net_unet, self.net_refine = nets[0], nets[1], nets[2], nets[3]
 
     def _get_mask(self, pred_spec, mix_spec):
         mask_real = (pred_spec[:, 0, :, :] * mix_spec[:, 0, :, :] + pred_spec[:, 1, :, :] * mix_spec[:, 1, :, :]) / \
@@ -95,23 +95,23 @@ class AudioVisualModel(torch.nn.Module):
             b = self.opt.sigmoidal_compression_b
             gt_masks = 1 / (1 + torch.exp(-a * gt_masks + b))
 
-        # pass through visual stream and extract lipreading features
-        lipreading_features = self.net_lipreading(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)
-        # pass through visual stream and extract identity features
-        if self.opt.number_of_identity_frames == 1:
-            identity_features = self.net_identity(Variable(frames, requires_grad=False))
+        # pass through visual stream and extract lip features
+        lip_features = self.lip_net(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)
+        # pass through visual stream and extract face features
+        if self.opt.number_of_face_frames == 1:
+            face_features = self.face_net(Variable(frames, requires_grad=False))
         else:
-            identity_features = self.net_identity.forward_multiframe(Variable(frames, requires_grad=False))
+            face_features = self.face_net.forward_multiframe(Variable(frames, requires_grad=False))
         if self.opt.l2_feature_normalization:
-            identity_features = F.normalize(identity_features, p=2, dim=1)
+            face_features = F.normalize(face_features, p=2, dim=1)
         # what type of visual feature to use
-        identity_features = identity_features.repeat(1, 1, 1, lipreading_features.shape[-1])  # (B, 128, 1, 64)
+        face_features = face_features.repeat(1, 1, 1, lip_features.shape[-1])  # (B, 128, 1, 64)
         if self.opt.visual_feature_type == 'both':
-            visual_features = torch.cat((identity_features, lipreading_features), dim=1)
-        elif self.opt.visual_feature_type == 'lipmotion':
-            visual_features = lipreading_features
-        else:  # 'identity':
-            visual_features = identity_features
+            visual_features = torch.cat((face_features, lip_features), dim=1)
+        elif self.opt.visual_feature_type == 'lip':
+            visual_features = lip_features
+        else:  # 'face':
+            visual_features = face_features
 
         # audio-visual feature fusion through UNet and predict mask
         if self.opt.compression_type == 'hyperbolic':
@@ -160,23 +160,23 @@ class AudioVisualModel(torch.nn.Module):
         mouthrois = input['mouthrois']  # B, 1, 64, 88, 88
         frames = input['frames']  # B, 3, 224, 224
 
-        # pass through visual stream and extract lipreading features
-        lipreading_features = self.net_lipreading(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)
-        # pass through visual stream and extract identity features
-        if self.opt.number_of_identity_frames == 1:
-            identity_features = self.net_identity(Variable(frames, requires_grad=False))
+        # pass through visual stream and extract lip features
+        lip_features = self.lip_net(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)
+        # pass through visual stream and extract face features
+        if self.opt.number_of_face_frames == 1:
+            face_features = self.face_net(Variable(frames, requires_grad=False))
         else:
-            identity_features = self.net_identity.forward_multiframe(Variable(frames, requires_grad=False))
+            face_features = self.face_net.forward_multiframe(Variable(frames, requires_grad=False))
         if self.opt.l2_feature_normalization:
-            identity_features = F.normalize(identity_features, p=2, dim=1)
+            face_features = F.normalize(face_features, p=2, dim=1)
         # what type of visual feature to use
-        identity_features = identity_features.repeat(1, 1, 1, lipreading_features.shape[-1])  # (B, 128, 1, 64)
+        face_features = face_features.repeat(1, 1, 1, lip_features.shape[-1])  # (B, 128, 1, 64)
         if self.opt.visual_feature_type == 'both':
-            visual_features = torch.cat((identity_features, lipreading_features), dim=1)
-        elif self.opt.visual_feature_type == 'lipmotion':
-            visual_features = lipreading_features
-        else:  # 'identity':
-            visual_features = identity_features
+            visual_features = torch.cat((face_features, lip_features), dim=1)
+        elif self.opt.visual_feature_type == 'lip':
+            visual_features = lip_features
+        else:  # 'face':
+            visual_features = face_features
 
         # audio-visual feature fusion through UNet and predict mask
         if self.opt.compression_type == 'hyperbolic':
