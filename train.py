@@ -219,13 +219,6 @@ def create_model(opt):
             print(f'resume net_unet from {ckpt_path}')
     nets.append(net_unet)
 
-    # refine_net = builder.build_refine_net(
-    #     opt=opt,
-    #     num_layers=opt.refine_num_layers,
-    #     residual_last=opt.residual_last,
-    #     kernel_size=opt.refine_kernel_size,
-    #     weights=opt.weights_refine
-    # )
     refine_net = builder.build_refine_net(
         opt=opt,
         num_layers=opt.refine_num_layers,
@@ -237,22 +230,6 @@ def create_model(opt):
         if opt.rank == 0:
             print(f'resume refine_net from {ckpt_path}')
     nets.append(refine_net)
-
-    if opt.use_contrast_loss:
-        net_vocal = builder.build_vocal(
-            opt=opt,
-            pool_type=opt.audio_pool,
-            input_channel=2,
-            with_fc=opt.with_fc,
-            fc_out=visual_feature_dim,
-            weights=opt.weights_vocal
-        )
-        if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'vocal_latest.pth')):
-            ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'vocal_latest.pth')
-            net_vocal.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
-            if opt.rank == 0:
-                print(f'resume net_vocal from {ckpt_path}')
-        nets.append(net_vocal)
 
     # construct our audio-visual model
     model = AudioVisualModel(nets, opt)
@@ -268,9 +245,6 @@ def create_optimizer(model, opt):
                     {'params': net_facial_attribtes.parameters(), 'lr': opt.lr_facial_attributes},
                     {'params': net_unet.parameters(), 'lr': opt.lr_unet},
                     {'params': net_refine.parameters(), 'lr': opt.lr_refine}]
-    if opt.use_contrast_loss:
-        net_vocal = model2.net_vocal
-        param_groups.append({'params': net_vocal.parameters(), 'lr': opt.lr_vocal})
     if opt.optimizer == 'sgd':
         optimizer = torch.optim.SGD(param_groups, momentum=opt.beta1, weight_decay=opt.weight_decay)
     elif opt.optimizer == 'adam':
@@ -296,17 +270,6 @@ def create_loss(opt):
         loss_sisnr = criterion.SISNRLoss()
         loss_sisnr.to(opt.device)
         crit['loss_sisnr'] = loss_sisnr
-    if opt.use_contrast_loss:
-        if opt.contrast_loss_type == 'TripletLossCosine':
-            loss_contrast = criterion.TripletLossCosine(opt.contrast_margin)
-        elif opt.contrast_loss_type == 'TripletLossCosine2':
-            loss_contrast = criterion.TripletLossCosine2(opt.contrast_margin)
-        elif opt.contrast_loss_type == "NCELoss":
-            loss_contrast = criterion.NCELoss(opt.contrast_temp)
-        elif opt.contrast_loss_type == "NCELoss2":
-            loss_contrast = criterion.NCELoss2(opt.contrast_temp)
-        loss_contrast.to(opt.device)
-        crit['loss_contrast'] = loss_contrast
     return crit
 
 
@@ -327,13 +290,8 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
     window = opt.window
     mixandseparate_losses = []
     sisnr_losses = []
-    contrast_losses = []
-    # recognition_losses = []
-    # distillation_losses = []
     sdrs_dict, sirs_dict, sars_dict = defaultdict(list), defaultdict(list), defaultdict(list)
     with torch.no_grad():
-        # print(f"val, rank:{dist.get_rank()} has {len(data_loader_val)} batches", flush=True)
-        # num_batch = len(data_loader_val)
 
         time.sleep(5)
 
@@ -348,11 +306,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
                 sisnr_loss = get_sisnr_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
                 reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
                 sisnr_losses.append(reduced_sisnr_loss.item())
-            if opt.use_contrast_loss:
-                contrast_loss = get_contrast_loss(opt, output, crit['loss_contrast']) * opt.contrast_loss_weight
-                reduced_con_loss = _reduce_tensor(contrast_loss.data)
-                contrast_losses.append(reduced_con_loss.item())
-            # print(f"val, batch:{i + 1} / {num_batch}, rank:{dist.get_rank()}, after loss", flush=True)
             try:
                 sdr_d, sir_d, sar_d = calculate_sdr(output, window, opt)
                 for key in sdr_d.keys():
@@ -390,10 +343,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
             avg_sisnr_loss = sum(sisnr_losses) / len(sisnr_losses)
             writer.add_scalar('data/val_sisnr_loss', avg_sisnr_loss, index)
             print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
-        if opt.use_contrast_loss:
-            avg_contrast_loss = sum(contrast_losses) / len(contrast_losses)
-            writer.add_scalar('data/val_contrast_loss', avg_contrast_loss, index)
-            print('contrast loss: %.5f, ' % avg_contrast_loss, end='')
         for key in sdrs_dict.keys():
             writer.add_scalar(f'data/val_{key}', sdrs_dict[key], index)
         for key in sirs_dict.keys():
@@ -438,38 +387,6 @@ def get_sisnr_loss(opt, output, loss_sisnr):
     return sisnr_loss
 
 
-def get_contrast_loss(opt, output, loss_contrast):
-    num_speakers = output['num_speakers']  # (B1,)
-    cumsum = torch.cumsum(num_speakers, dim=0) - num_speakers
-    indexes = torch.cat([torch.multinomial(torch.ones(n).cuda(), 2) + cumsum[i] for i, n in enumerate(num_speakers)], dim=0)
-    indexes1, indexes2 = indexes[::2], indexes[1::2]
-    visual_features1 = output['visual_features'][indexes1]  # (B1, 640, 1, 64)
-    visual_features2 = output['visual_features'][indexes2]  # (B1, 640, 1, 64)
-    audio_embeds_mix1 = output['audio_embeds_mix'][indexes1]  # (B1, 640, 1, 1)
-    audio_embeds_mix2 = output['audio_embeds_mix'][indexes2]  # (B1, 640, 1, 1)
-    if random.random() <= opt.contrast_gt_percentage:
-        audio_embeds1 = output['audio_embeds'][indexes1]  # (B1, 640, 1, 1)
-        audio_embeds2 = output['audio_embeds'][indexes2]  # (B1, 640, 1, 1)
-    else:
-        audio_embeds1 = output['pred_embeds'][indexes1]  # (B1, 640, 1, 1)
-        audio_embeds2 = output['pred_embeds'][indexes2]  # (B1, 640, 1, 1)
-
-    if isinstance(loss_contrast, criterion.TripletLossCosine) or isinstance(loss_contrast, criterion.TripletLossCosine2):
-        if opt.contrast_type == "audio":  # (V1, A1) > (V1, A2) + (V2, A2) > (V2, A1)
-            contrast_loss = loss_contrast(visual_features1, audio_embeds1, audio_embeds2) + loss_contrast(
-                visual_features2, audio_embeds2, audio_embeds1)
-        elif opt.contrast_type == "mixture":  # ((V1, A1) > (V1, M1) + (V1, M1) > (V1, A2) + (V2, A2) > (V2, M2) + (V2, M2) > (V2, A1)) / 2
-            contrast_loss = (loss_contrast(visual_features1, audio_embeds1, audio_embeds_mix1) + loss_contrast(
-                visual_features1, audio_embeds_mix1, audio_embeds2) +
-                             loss_contrast(visual_features2, audio_embeds2, audio_embeds_mix2) + loss_contrast(
-                        visual_features2, audio_embeds_mix2, audio_embeds1)) / 2
-    # elif isinstance(loss_contrast, criterion.NCELoss) or isinstance(loss_contrast, criterion.NCELoss2):
-    #     contrast_loss = loss_contrast(visual_features, audio_embeds, audio_embeds_mix)
-
-    return contrast_loss
-
-
-################3  metrics
 def _getSeparationMetrics(src, dst):  # src: (B, N, L), N为混合数
     # 一定是同一个混合样本的 src 和 dst
     # audio1: (batch, length)
@@ -555,8 +472,6 @@ def main():
     net_lipreading, net_facial_attribtes, net_unet, net_refine = model2.net_lipreading, model2.net_identity, \
                                                                  model2.net_unet, model2.net_refine
 
-    if opt.use_contrast_loss:
-        net_vocal = model2.net_vocal
     # create optimizer
     optimizer = create_optimizer(model, opt)
     # create loss
@@ -572,7 +487,6 @@ def main():
 
     batch_mixandseparate_loss = []
     batch_sisnr_loss = []
-    batch_contrast_loss = []
 
     best_sdr = -float("inf")
     start_epoch = 0
@@ -647,11 +561,6 @@ def main():
                 loss = loss + sisnr_loss
                 reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
                 batch_sisnr_loss.append(reduced_sisnr_loss.item())
-            if opt.use_contrast_loss:
-                contrast_loss = get_contrast_loss(opt, output, crit['loss_contrast']) * opt.contrast_loss_weight
-                loss = loss + contrast_loss
-                reduced_con_loss = _reduce_tensor(contrast_loss.data)
-                batch_contrast_loss.append(reduced_con_loss.item())
 
             # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, before loss backward", flush=True)
             loss.backward()
@@ -674,13 +583,9 @@ def main():
                 if opt.use_sisnr_loss:
                     avg_sisnr_loss = sum(batch_sisnr_loss) / len(batch_sisnr_loss)
                     print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
-                if opt.use_contrast_loss:
-                    avg_contrast_loss = sum(batch_contrast_loss) / len(batch_contrast_loss)
-                    print('contrast loss: %.5f, ' % avg_contrast_loss, end='')
 
                 batch_mixandseparate_loss = []
                 batch_sisnr_loss = []
-                batch_contrast_loss = []
 
                 if opt.tensorboard:
                     opt.writer.add_scalar('data/lipreading_lr', optimizer.state_dict()['param_groups'][0]['lr'],
@@ -690,11 +595,6 @@ def main():
                     opt.writer.add_scalar('data/unet_lr', optimizer.state_dict()['param_groups'][2]['lr'], cumsum_batch)
                     opt.writer.add_scalar('data/refine_lr', optimizer.state_dict()['param_groups'][3]['lr'],
                                           cumsum_batch)
-                    net_idx = 4
-                    if opt.use_contrast_loss:
-                        opt.writer.add_scalar('data/vocal_lr', optimizer.state_dict()['param_groups'][net_idx]['lr'], cumsum_batch)
-                        net_idx += 1
-                        opt.writer.add_scalar('data/contrast_loss', avg_contrast_loss, cumsum_batch)
                     if opt.use_mixandseparate_loss:
                         opt.writer.add_scalar('data/mixandseparate_loss', avg_mixandseparate_loss, cumsum_batch)
                     if opt.use_sisnr_loss:
@@ -723,8 +623,6 @@ def main():
                         torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_best.pth'))
                         torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
                         torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
-                        if opt.use_contrast_loss:
-                            torch.save(net_vocal.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'vocal_best.pth'))
 
             if (batch + 1) % opt.save_latest_freq == 0 and opt.rank == 0:
                 print('saving the latest model (epoch %d, batch %d)' % (epoch, batch))
@@ -732,8 +630,6 @@ def main():
                 torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_latest.pth'))
                 torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
                 torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
-                if opt.use_contrast_loss:
-                    torch.save(net_vocal.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'vocal_latest.pth'))
                 ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch, 'batch': batch + 1, 'cumsum_batch': cumsum_batch + 1, 'best_sdr': best_sdr}
                 torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
@@ -755,8 +651,6 @@ def main():
             torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_latest.pth'))
             torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
             torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
-            if opt.use_contrast_loss:
-                torch.save(net_vocal.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'vocal_latest.pth'))
             ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch + 1, 'batch': 0, 'cumsum_batch': cumsum_batch, 'best_sdr': best_sdr}
             torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
@@ -777,8 +671,6 @@ def main():
                     torch.save(net_facial_attribtes.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facial_best.pth'))
                     torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
                     torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
-                    if opt.use_contrast_loss:
-                        torch.save(net_vocal.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'vocal_best.pth'))
 
         # decrease learning rate
         if (epoch + 1) in opt.lr_steps:

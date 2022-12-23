@@ -10,22 +10,7 @@ class AudioVisualModel(torch.nn.Module):
     def __init__(self, nets, opt):
         super(AudioVisualModel, self).__init__()
         self.opt = opt
-
         self.net_lipreading, self.net_identity, self.net_unet, self.net_refine = nets[0], nets[1], nets[2], nets[3]
-        net_idx = 4
-        # initialize model and criterions
-
-    # def _sep_post_process(self, mask_predictions):
-    #     if self.opt.compression_type == 'hyperbolic':
-    #         K = self.opt.hyperbolic_compression_K
-    #         C = self.opt.hyperbolic_compression_C
-    #         mask_predictions = - torch.log((K - mask_predictions) / (K + mask_predictions)) / C
-    #     elif self.opt.compression_type == 'sigmoidal':
-    #         a = self.opt.sigmoidal_compression_a
-    #         b = self.opt.sigmoidal_compression_b
-    #         mask_predictions = (b - torch.log(1 / mask_predictions - 1)) / a
-    #     mask_predictions.clamp_(-self.opt.mask_clip_threshold, self.opt.mask_clip_threshold)
-    #     return mask_predictions
 
     def _get_mask(self, pred_spec, mix_spec):
         mask_real = (pred_spec[:, 0, :, :] * mix_spec[:, 0, :, :] + pred_spec[:, 1, :, :] * mix_spec[:, 1, :, :]) / \
@@ -39,16 +24,6 @@ class AudioVisualModel(torch.nn.Module):
     def _step1_sep(self, audio_spec, visual_feature, activation, scalar):
         pred_mask = scalar * self.net_unet(audio_spec, visual_feature, activation)  # (B, 2, 257, 256)
         return pred_mask
-
-    # # input spec
-    # def _step2_refine(self, pred_specs, visual_features, num_speakers, audio_mix):
-    #     # preds: (B, 2, 257, 256), visual_features: (B, 640, 64);  输入mask,输出mask
-    #     pred_specs_clone = pred_specs.clone()  # (B, 2, 257, 256)
-    #     cumsum = 0
-    #     for n in num_speakers:  # 2, 2, 3, 4, 5, 2, 2, 3, 4, 5
-    #         pred_specs_clone[cumsum:cumsum + n] = self.net_refine(pred_specs[cumsum:cumsum+n], visual_features[cumsum:cumsum+n], audio_mix[cumsum:cumsum+n])  # (B, 2, 257, 256)
-    #         cumsum += n
-    #     return pred_specs_clone
 
     # input mask
     def _step2_refine(self, pred_masks, visual_features, num_speakers):
