@@ -37,7 +37,7 @@ noise_root=${noise_root:-"s3://chy/noise/audio"}
 display_freq=${display_freq:-10}
 save_latest_freq=${save_latest_freq:-50}
 validation_on=${validation_on:-"true"}
-validation_freq=${validation_freq:-2400}
+validation_freq=${validation_freq:-200}
 
 weights_facial=${weights_facial:-"a"}
 weights_unet=${weights_unet:-"a"}
