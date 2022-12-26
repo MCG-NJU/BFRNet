@@ -53,15 +53,11 @@ class TrainOptions(BaseOptions):
 		# self.parser.add_argument('--audio_augmentation', type=str, choices=["true", "false"], default="false", help='whether to augment input audio')
 		self.parser.add_argument('--audio_normalization', type=str, choices=["true", "false"], default="true", help="whether to normalize audio?")
 
-		# # whether to use loss
-		# self.parser.add_argument('--use_mixandseparate_loss', default="true", type=str, choices=["true", "false"], help='whether to use mix-and-separate loss')
-		# self.parser.add_argument('--use_sisnr_loss', default="true", type=str, choices=["true", "false"], help='whether to use sisnr loss')
 		# loss type
 		# self.parser.add_argument('--mask_loss_type', default='L2', type=str, choices=('L1', 'L2', 'BCE'), help='type of loss on mask')
-		self.parser.add_argument('--weighted_mask_loss', action='store_true', help="weighted loss")
+		# self.parser.add_argument('--weighted_mask_loss', action='store_true', help="weighted loss")
 
 		# loss weight
-		# self.parser.add_argument('--mixandseparate_loss_weight', default=1, type=float, help='weight for reconstruction loss')
 		self.parser.add_argument('--sisnr_loss_weight', default=1, type=float, help='weight for sisnr loss')
 		self.parser.add_argument('--lamda', default=0.5, type=float, help='the factor to control the ratio of the losses.')
 

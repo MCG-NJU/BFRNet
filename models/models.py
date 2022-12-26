@@ -30,7 +30,6 @@ class ModelBuilder:
         if os.path.exists(config_path):
             args_loaded = load_json(config_path)
             if opt.rank == 0:
-            # if dist.get_rank() == 0:
                 print(f'Lipreading configuration file loaded: {config_path}')
             tcn_options = { 'num_layers': args_loaded['tcn_num_layers'],
                             'kernel_size': args_loaded['tcn_kernel_size'],
@@ -45,7 +44,6 @@ class ModelBuilder:
 
         if len(weights) > 0 and os.path.exists(weights):
             if opt.rank == 0:
-            # if dist.get_rank() == 0:
                 print(f'Loading weights for lipreading stream: {weights}')
             net.load_state_dict(torch.load(weights, map_location='cpu'))
         return net

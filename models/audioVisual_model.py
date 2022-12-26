@@ -72,28 +72,27 @@ class AudioVisualModel(torch.nn.Module):
         return pred_spec
 
     def forward_train(self, input):
-        # print(f"rank:{dist.get_rank()}, begin forward", flush=True)
         audio_specs = input['audio_specs']  # B, 2, 257, 256
         audio_spec_mix = input['audio_spec_mix']  # B, 2, 257, 256
         mouthrois = input['mouthrois']  # B, 1, 64, 88, 88
         frames = input['frames']  # B, 3, 224, 224
 
-        # calculate ground-truth masks
-        gt_mask_real = (audio_specs[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_specs[:, 1, :, :] * audio_spec_mix[:, 1, :, :]) / \
-                       (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
-        gt_mask_imag = (audio_specs[:, 1, :, :] * audio_spec_mix[:, 0, :, :] - audio_specs[:, 0, :, :] * audio_spec_mix[:, 1, :, :]) / \
-                       (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
-        gt_masks = torch.cat((gt_mask_real.unsqueeze(1), gt_mask_imag.unsqueeze(1)), 1)
-        gt_masks.clamp_(-self.opt.mask_clip_threshold, self.opt.mask_clip_threshold)  # B, 2, 257, 256
+        # # calculate ground-truth masks
+        # gt_mask_real = (audio_specs[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_specs[:, 1, :, :] * audio_spec_mix[:, 1, :, :]) / \
+        #                (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
+        # gt_mask_imag = (audio_specs[:, 1, :, :] * audio_spec_mix[:, 0, :, :] - audio_specs[:, 0, :, :] * audio_spec_mix[:, 1, :, :]) / \
+        #                (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
+        # gt_masks = torch.cat((gt_mask_real.unsqueeze(1), gt_mask_imag.unsqueeze(1)), 1)
+        # gt_masks.clamp_(-self.opt.mask_clip_threshold, self.opt.mask_clip_threshold)  # B, 2, 257, 256
 
-        if self.opt.compression_type == 'hyperbolic':
-            K = self.opt.hyperbolic_compression_K
-            C = self.opt.hyperbolic_compression_C
-            gt_masks = K * (1 - torch.exp(-C * gt_masks)) / (1 + torch.exp(-C * gt_masks))
-        elif self.opt.compression_type == 'sigmoidal':
-            a = self.opt.sigmoidal_compression_a
-            b = self.opt.sigmoidal_compression_b
-            gt_masks = 1 / (1 + torch.exp(-a * gt_masks + b))
+        # if self.opt.compression_type == 'hyperbolic':
+        #     K = self.opt.hyperbolic_compression_K
+        #     C = self.opt.hyperbolic_compression_C
+        #     gt_masks = K * (1 - torch.exp(-C * gt_masks)) / (1 + torch.exp(-C * gt_masks))
+        # elif self.opt.compression_type == 'sigmoidal':
+        #     a = self.opt.sigmoidal_compression_a
+        #     b = self.opt.sigmoidal_compression_b
+        #     gt_masks = 1 / (1 + torch.exp(-a * gt_masks + b))
 
         # pass through visual stream and extract lip features
         lip_features = self.lip_net(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)
@@ -124,34 +123,21 @@ class AudioVisualModel(torch.nn.Module):
             scalar = 1
             activation = 'Sigmoid'
 
-        if self.opt.weighted_mask_loss:
-            weight = torch.log1p(torch.norm(audio_spec_mix, p=2, dim=1)).unsqueeze(1).repeat(1, 2, 1, 1)
-            weight = torch.clamp(weight, 1e-3, 10)
-        else:
-            weight = 1
-
         # refine module: input mask, output mask
         mask_predictions_pre = self._step1_sep(audio_spec_mix, visual_features, activation, scalar)  # (B, 2, 257, 256)
         pred_specs_pre = self._get_spec_full(mask_predictions_pre, audio_spec_mix)  # (B, 2, 257, 256)
         mask_predictions_aft = self._step2_refine(mask_predictions_pre, visual_features.squeeze(2), input['num_speakers'])  # (B, 2, 257, 256)
         pred_specs_aft = self._get_spec_full(mask_predictions_aft, audio_spec_mix)  # (B, 2, 257, 256)
-        # pred_specs_aft = self._step2_refine(pred_specs_pre, visual_features.squeeze(2), input['num_speakers'], audio_spec_mix)  # (B, 2, 257, 256)
 
         pred_specs_pre = pred_specs_pre.transpose(1, 2).transpose(2, 3)  # (B, 257, 256, 2)
         pred_specs_aft = pred_specs_aft.transpose(1, 2).transpose(2, 3)  # (B, 257, 256, 2)
 
         output = {}
-        output['mask_predictions_pre'] = mask_predictions_pre  # (B, 2, 256, 256)
-        output['mask_predictions_aft'] = mask_predictions_aft  # (B, 2, 256, 256)
-        output['gt_masks'] = gt_masks  # (B, 2, 257, 256)
-        output['weight'] = weight
         output['audio_specs'] = audio_specs.transpose(1, 2).transpose(2, 3)  # (B, 257, 256, 2)
         output['pred_specs_pre'] = pred_specs_pre  # (B, 257, 256, 2)
         output['pred_specs_aft'] = pred_specs_aft  # (B, 257, 256, 2)
         output['num_speakers'] = input['num_speakers']
         output['indexes'] = input['indexes']
-
-        # print(f"rank:{dist.get_rank()} finish forward", flush=True)
 
         return output
 

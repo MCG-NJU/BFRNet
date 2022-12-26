@@ -247,16 +247,6 @@ def create_optimizer(model, opt):
 
 def create_loss(opt):
     crit = {}
-    # if opt.use_mixandseparate_loss:
-    #     if opt.mask_loss_type == 'L1':
-    #         loss_mixandseparate = criterion.L1Loss()
-    #     elif opt.mask_loss_type == 'L2':
-    #         loss_mixandseparate = criterion.L2Loss()
-    #     else:  # BCE
-    #         loss_mixandseparate = criterion.BCELoss()
-    #     loss_mixandseparate.to(opt.device)
-    #     crit['loss_mixandseparate'] = loss_mixandseparate
-    # if opt.use_sisnr_loss:
     loss_sisnr = criterion.SISNRLoss()
     loss_sisnr.to(opt.device)
     crit['loss_sisnr'] = loss_sisnr
@@ -277,7 +267,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
         pb = ProgressBar(len(data_loader_val), start=False)
         pb.start()
     window = opt.window
-    # mixandseparate_losses = []
     sisnr_losses = []
     sdrs_dict, sirs_dict, sars_dict = defaultdict(list), defaultdict(list), defaultdict(list)
     with torch.no_grad():
@@ -286,11 +275,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
 
         for i, val_data in enumerate(data_loader_val):
             output = model.forward(val_data)
-            # if opt.use_mixandseparate_loss:
-            #     mixandseparate_loss = get_mixandseparate_loss(opt, output, crit['loss_mixandseparate']) * opt.mixandseparate_loss_weight
-            #     reduced_mix_loss = _reduce_tensor(mixandseparate_loss.data)
-            #     mixandseparate_losses.append(reduced_mix_loss.item())
-            # if opt.use_sisnr_loss:
             sisnr_loss = get_sisnr_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
             reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
             sisnr_losses.append(reduced_sisnr_loss.item())
@@ -314,11 +298,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
     for key in sars_dict.keys():
         sars_dict[key] = sum(sars_dict[key]) / len(sars_dict[key])
     if opt.rank == 0:
-        # if opt.use_mixandseparate_loss:
-        #     avg_mixandseparate_loss = sum(mixandseparate_losses) / len(mixandseparate_losses)
-        #     writer.add_scalar('data/val_mixandseparate_loss', avg_mixandseparate_loss, index)
-        #     print('mix-sep loss: %.5f, ' % avg_mixandseparate_loss, end='')
-        # if opt.use_sisnr_loss:
         avg_sisnr_loss = sum(sisnr_losses) / len(sisnr_losses)
         writer.add_scalar('data/val_sisnr_loss', avg_sisnr_loss, index)
         print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
@@ -329,17 +308,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
         for key in sars_dict.keys():
             writer.add_scalar(f'data/val_{key}', sars_dict[key], index)
     return sdrs_dict['sdr2']
-
-
-# ################## loss
-# def get_mixandseparate_loss(opt, output, loss_mixandseparate):
-#     gt_masks = output['gt_masks']  # (B, 2, 257, 256)
-#     mask_predictions_pre = output['mask_predictions_pre']  # (B, 2, 256, 256)
-#     mask_predictions_aft = output['mask_predictions_aft']  # (B, 2, 256, 256)
-#     weight = output['weight']
-#     mixandseparate_loss = loss_mixandseparate(mask_predictions_pre, gt_masks[:, :, :-1, :], weight) * opt.lamda + \
-#                           loss_mixandseparate(mask_predictions_aft, gt_masks[:, :, :-1, :], weight) * (1 - opt.lamda)
-#     return mixandseparate_loss
 
 
 def get_sisnr_loss(opt, output, loss_sisnr):
@@ -453,7 +421,6 @@ def main():
     model_forward_time = []
     model_backward_time = []
 
-    # batch_mixandseparate_loss = []
     batch_sisnr_loss = []
 
     best_sdr = -float("inf")
@@ -507,12 +474,6 @@ def main():
 
             # calculate loss
             loss = 0
-            # if opt.use_mixandseparate_loss:
-            #     mixandseparate_loss = get_mixandseparate_loss(opt, output, crit['loss_mixandseparate']) * opt.mixandseparate_loss_weight
-            #     loss = loss + mixandseparate_loss
-            #     reduced_mix_loss = _reduce_tensor(mixandseparate_loss.data)
-            #     batch_mixandseparate_loss.append(reduced_mix_loss.item())
-            # if opt.use_sisnr_loss:
             sisnr_loss = get_sisnr_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
             loss = loss + sisnr_loss
             reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
@@ -530,14 +491,9 @@ def main():
 
             if (batch + 1) % opt.display_freq == 0 and opt.rank == 0:
                 print(f'Epoch %d, Batch %d: ' % (epoch, batch), end='')
-                # if opt.use_mixandseparate_loss:
-                #     avg_mixandseparate_loss = sum(batch_mixandseparate_loss) / len(batch_mixandseparate_loss)
-                #     print('mix-sep loss: %.5f, ' % avg_mixandseparate_loss, end='')
-                # if opt.use_sisnr_loss:
                 avg_sisnr_loss = sum(batch_sisnr_loss) / len(batch_sisnr_loss)
                 print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
 
-                # batch_mixandseparate_loss = []
                 batch_sisnr_loss = []
 
                 if opt.tensorboard:
@@ -548,9 +504,6 @@ def main():
                     opt.writer.add_scalar('data/unet_lr', optimizer.state_dict()['param_groups'][2]['lr'], cumsum_batch)
                     opt.writer.add_scalar('data/FRNet_lr', optimizer.state_dict()['param_groups'][3]['lr'],
                                           cumsum_batch)
-                    # if opt.use_mixandseparate_loss:
-                    #     opt.writer.add_scalar('data/mixandseparate_loss', avg_mixandseparate_loss, cumsum_batch)
-                    # if opt.use_sisnr_loss:
                     opt.writer.add_scalar('data/sisnr_loss', avg_sisnr_loss, cumsum_batch)
                 print('data load: %.3f s, ' % (sum(data_loading_time)/len(data_loading_time)), end='')
                 print('forward: %.3f s, ' % (sum(model_forward_time)/len(model_forward_time)), end='')
@@ -595,8 +548,6 @@ def main():
 
             # 防止进程互锁
             dist.barrier()
-
-            # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, finish batch", flush=True)
 
         if opt.rank == 0:  # save latest model for each epoch
             print('saving the latest model (epoch %d)' % epoch)

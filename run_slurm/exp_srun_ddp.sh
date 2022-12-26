@@ -40,16 +40,10 @@ weights_unet=${weights_unet:-"a"}
 weights_FRNet=${weights_FRNet:-"a"}
 weights_lipnet=${weights_lipnet:-"a"}
 
-#use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
-#use_sisnr_loss=${use_sisnr_loss:-"true"}
-
-#mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
 sisnr_loss_weight=${sisnr_loss_weight:-1}
 lamda=${lamda:-0.5}
 
 FRNet_layers=${FRNet_layers:-2}
-
-#mask_loss_type=${mask_loss_type:-"L2"}
 
 epochs=${epochs:-19}
 lr_steps=${lr_steps:-12 15}
