@@ -26,11 +26,10 @@ weights_facial=${weights_facial:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice
 # weights_facial=${weights_facial:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/facial_best.pth"}
 weights_unet=${weights_unet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/unet_best.pth"}
 # weights_unet=${weights_unet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/unet_best.pth"}
-weights_refine=${weights_refine:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
-# weights_refine=${weights_refine:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/refine_best.pth"}
+weights_FRNet=${weights_FRNet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
+# weights_FRNet=${weights_FRNet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/refine_best.pth"}
 
 FRNet_layers=${FRNet_layers:-2}
-residual_last=${residual_last:-"false"}
 
 PY_ARGS=${@:3}  # Any arguments from the forth one are captured by this
 
@@ -66,7 +65,7 @@ srun -p ${PARTITION} \
     --weights_lipreadingnet ${weights_lipreadingnet} \
     --weights_facial ${weights_facial} \
     --weights_unet ${weights_unet} \
-    --weights_refine ${weights_refine} \
+    --weights_FRNet ${weights_FRNet} \
     --lipreading_config_path configs/lrw_snv1x_tcn2x.json \
     --unet_output_nc 2 \
     --normalization "true" \
@@ -81,5 +80,4 @@ srun -p ${PARTITION} \
     --number_of_identity_frames 1 \
     --audio_normalization "true" \
     --FRNet_layers ${FRNet_layers} \
-    --residual_last "false" \
     --reliable_face "true"

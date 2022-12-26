@@ -26,7 +26,7 @@ class TestOptions(BaseOptions):
 		self.parser.add_argument('--weights_facial', type=str, required=True, help="weights for facial attributes net")
 		self.parser.add_argument('--weights_unet', type=str, required=True, help="weights for unet")
 		self.parser.add_argument('--weights_lipreadingnet', type=str, required=True, help="weights for lipreading net")
-		self.parser.add_argument('--weights_refine', type=str, required=True, help="weights for refine net")
+		self.parser.add_argument('--weights_FRNet', type=str, required=True, help="weights for FRNet")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")

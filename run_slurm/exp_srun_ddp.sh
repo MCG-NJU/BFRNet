@@ -41,7 +41,7 @@ validation_freq=${validation_freq:-200}
 
 weights_facenet=${weights_facenet:-"a"}
 weights_unet=${weights_unet:-"a"}
-weights_refine=${weights_refine:-"a"}
+weights_FRNet=${weights_FRNet:-"a"}
 weights_lipnet=${weights_lipnet:-"a"}
 weights_vocal=${weights_vocal:-"a"}
 
@@ -54,8 +54,6 @@ sisnr_loss_weight=${sisnr_loss_weight:-1}
 lamda=${lamda:-0.5}
 
 FRNet_layers=${FRNet_layers:-2}
-residual_last=${residual_last:-"true"}
-refine_kernel_size=${refine_kernel_size:-1}
 
 mask_loss_type=${mask_loss_type:-"L2"}
 contrast_loss_type=${contrast_loss_type:-"TripletLossCosine"}
@@ -134,8 +132,6 @@ srun -p ${PARTITION} \
     --sisnr_loss_weight ${sisnr_loss_weight} \
     --lamda ${lamda} \
     --FRNet_layers ${FRNet_layers} \
-    --residual_last ${residual_last} \
-    --refine_kernel_size ${refine_kernel_size} \
     --contrast_loss_type ${contrast_loss_type} \
     --contrast_loss_weight ${contrast_loss_weight} \
     --contrast_margin ${contrast_margin} \
@@ -149,7 +145,7 @@ srun -p ${PARTITION} \
     --lr_vocal ${lr_vocal} \
     --weights_facenet ${weights_facenet} \
     --weights_unet ${weights_unet} \
-    --weights_refine ${weights_refine} \
+    --weights_FRNet ${weights_FRNet} \
     --weights_lipnet ${weights_lipnet} \
     --weights_vocal ${weights_vocal} \
     --decay_factor ${decay_factor} \

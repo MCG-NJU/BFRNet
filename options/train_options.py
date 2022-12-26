@@ -25,8 +25,8 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--audio_pool', type=str, default='maxpool', help="avg or max pool for audio stream feature")
 		self.parser.add_argument('--weights_facenet', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
 		self.parser.add_argument('--weights_unet', type=str, default='', help="weights for unet")
-		self.parser.add_argument('--weights_refine', type=str, default='', help="weights for refine net")
-		self.parser.add_argument('--weights_lipnet', type=str, default='', help="weights for lipreading net")
+		self.parser.add_argument('--weights_FRNet', type=str, default='', help="weights for FRNet")
+		self.parser.add_argument('--weights_lipnet', type=str, default='', help="weights for lipnet")
 		self.parser.add_argument('--weights_vocal', type=str, default='', help="weights for vocal net")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
@@ -37,8 +37,6 @@ class TrainOptions(BaseOptions):
 
 		# refine model arguments
 		self.parser.add_argument('--FRNet_layers', type=int, default=1, help="number of layers in FRNet")
-		self.parser.add_argument('--residual_last', type=str, choices=["true", "false"], help="whether to use residual in the last layer of refine model")
-		self.parser.add_argument('--refine_kernel_size', type=int, choices=[1, 3], help="the kernel size of the av-convolution in refine module")
 
 		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lip', 'face', 'both'), help='type of visual feature to use')
 		self.parser.add_argument('--number_of_face_frames', type=int, default=1, help="number of face frames to use")
