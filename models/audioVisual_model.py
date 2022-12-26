@@ -10,7 +10,7 @@ class AudioVisualModel(torch.nn.Module):
     def __init__(self, nets, opt):
         super(AudioVisualModel, self).__init__()
         self.opt = opt
-        self.lip_net, self.face_net, self.net_unet, self.net_refine = nets[0], nets[1], nets[2], nets[3]
+        self.lip_net, self.face_net, self.unet, self.FRNet = nets[0], nets[1], nets[2], nets[3]
 
     def _get_mask(self, pred_spec, mix_spec):
         mask_real = (pred_spec[:, 0, :, :] * mix_spec[:, 0, :, :] + pred_spec[:, 1, :, :] * mix_spec[:, 1, :, :]) / \
@@ -22,7 +22,7 @@ class AudioVisualModel(torch.nn.Module):
         return mask
 
     def _step1_sep(self, audio_spec, visual_feature, activation, scalar):
-        pred_mask = scalar * self.net_unet(audio_spec, visual_feature, activation)  # (B, 2, 257, 256)
+        pred_mask = scalar * self.unet(audio_spec, visual_feature, activation)  # (B, 2, 257, 256)
         return pred_mask
 
     # input mask
@@ -31,7 +31,7 @@ class AudioVisualModel(torch.nn.Module):
         pred_masks_clone = pred_masks.clone()  # (B, 2, 256, 256)
         cumsum = 0
         for n in num_speakers:  # 2, 2, 3, 4, 5, 2, 2, 3, 4, 5
-            pred_masks_clone[cumsum:cumsum+n] = self.net_refine(pred_masks[cumsum:cumsum+n], visual_features[cumsum:cumsum+n])  # (B, 2, 256, 256)
+            pred_masks_clone[cumsum:cumsum+n] = self.FRNet(pred_masks[cumsum:cumsum+n], visual_features[cumsum:cumsum+n])  # (B, 2, 256, 256)
             cumsum += n
         return pred_masks_clone
 
@@ -39,7 +39,7 @@ class AudioVisualModel(torch.nn.Module):
         # preds: (total_seg, num_speakers, 2, 257, 256), visual_features: (total_seg, num_speakers, 640, 64)
         pred_masks_clone = pred_masks.clone()
         for n in range(len(pred_masks)):
-            pred_masks_clone_tmp = self.net_refine(pred_masks[n], visual_features[n])
+            pred_masks_clone_tmp = self.FRNet(pred_masks[n], visual_features[n])
             pred_masks_clone[n] = pred_masks_clone_tmp
         return pred_masks_clone
 

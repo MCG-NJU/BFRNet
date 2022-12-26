@@ -58,7 +58,6 @@ class ModelBuilder:
 
         if len(weights) > 0 and os.path.exists(weights):
             if opt.rank == 0:
-            # if dist.get_rank() == 0:
                 print(f'Loading weights for UNet: {weights}')
             net.load_state_dict(torch.load(weights, map_location='cpu'))
         return net
@@ -79,10 +78,10 @@ class ModelBuilder:
             net.load_state_dict(model_state)
         return net
 
-    def build_refine_net(self, opt, num_layers, weights=''):
+    def build_FRNet(self, opt, num_layers, weights=''):
         net = FRModel(num_layers)
         if len(weights) > 0 and os.path.exists(weights):
             if opt.rank == 0:
-                print(f'Loading weights for refine net: {weights}')
+                print(f'Loading weights for FRNet: {weights}')
             net.load_state_dict(torch.load(weights, map_location='cpu'))
         return net

@@ -32,7 +32,8 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
 		self.parser.add_argument('--lipnet_config_path', type=str, default='configs/lrw_snv1x_tcn2x.json', help='path to the config file of lipreading')
-		self.parser.add_argument('--face_feature_dim', type=int, default=128, help="dimension of identity feature map")
+		self.parser.add_argument('--lip_feature_dim', type=int, default=512, help="dimension of lip feature map")
+		self.parser.add_argument('--face_feature_dim', type=int, default=128, help="dimension of face feature map")
 
 		# refine model arguments
 		self.parser.add_argument('--refine_num_layers', type=int, default=1, help="number of the encoder layers in refine model")
@@ -71,7 +72,7 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--mixandseparate_loss_weight', default=1, type=float, help='weight for reconstruction loss')
 		self.parser.add_argument('--sisnr_loss_weight', default=1, type=float, help='weight for sisnr loss')
 		self.parser.add_argument('--contrast_loss_weight', default=1e-2, type=float, help='weight for contrast loss')
-		self.parser.add_argument('--after_refine_ratio', default=0.5, type=float, help='the ratio of after refine loss of the total')
+		self.parser.add_argument('--lamda', default=0.5, type=float, help='the factor to control the ratio of the losses.')
 
 		# contrast params
 		self.parser.add_argument('--contrast_margin', default=0.5, type=float, help='margin for triplet loss')
@@ -81,7 +82,7 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--lr_lipnet', type=float, default=1e-4, help='learning rate for lipreading stream')
 		self.parser.add_argument('--lr_facenet', type=float, default=1e-5, help='learning rate for identity stream')
 		self.parser.add_argument('--lr_unet', type=float, default=1e-4, help='learning rate for unet')
-		self.parser.add_argument('--lr_refine', type=float, default=1e-4, help='learning rate for refine net')
+		self.parser.add_argument('--lr_FRNet', type=float, default=1e-4, help='learning rate for refine net')
 		self.parser.add_argument('--lr_vocal', type=float, default=1e-4, help='learning rate for vocal')
 
 		self.parser.add_argument('--epochs', type=int, default=1, help='# of epochs to train, set to 1 because we are doing random sampling from the whole dataset')

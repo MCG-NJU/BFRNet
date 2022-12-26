@@ -51,7 +51,7 @@ use_contrast_loss=${use_contrast_loss:-"false"}
 
 mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
 sisnr_loss_weight=${sisnr_loss_weight:-1}
-after_refine_ratio=${after_refine_ratio:-0.5}
+lamda=${lamda:-0.5}
 
 refine_num_layers=${refine_num_layers:-2}
 residual_last=${residual_last:-"true"}
@@ -68,7 +68,7 @@ lr_steps=${lr_steps:-12 15}
 lr_lipnet=${lr_lipnet:-1e-4}
 lr_facenet=${lr_facenet:-1e-4}
 lr_unet=${lr_unet:-1e-4}
-lr_refine=${lr_refine:-1e-4}
+lr_FRNet=${lr_FRNet:-1e-4}
 lr_vocal=${lr_vocal:-1e-4}
 decay_factor=${decay_factor:-0.1}
 
@@ -132,7 +132,7 @@ srun -p ${PARTITION} \
     --mask_loss_type ${mask_loss_type} \
     --mixandseparate_loss_weight ${mixandseparate_loss_weight} \
     --sisnr_loss_weight ${sisnr_loss_weight} \
-    --after_refine_ratio ${after_refine_ratio} \
+    --lamda ${lamda} \
     --refine_num_layers ${refine_num_layers} \
     --residual_last ${residual_last} \
     --refine_kernel_size ${refine_kernel_size} \
@@ -145,7 +145,7 @@ srun -p ${PARTITION} \
     --lr_lipnet ${lr_lipnet} \
     --lr_facenet ${lr_facenet} \
     --lr_unet ${lr_unet} \
-    --lr_refine ${lr_refine} \
+    --lr_FRNet ${lr_FRNet} \
     --lr_vocal ${lr_vocal} \
     --weights_facenet ${weights_facenet} \
     --weights_unet ${weights_unet} \

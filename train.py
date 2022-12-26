@@ -164,13 +164,6 @@ def _init():
 
 ################ construct model, optimizer, loss
 def create_model(opt):
-    if opt.visual_feature_type == 'both':
-        visual_feature_dim = 512 + opt.face_feature_dim
-    elif opt.visual_feature_type == 'lip':
-        visual_feature_dim = 512
-    else:  # face
-        visual_feature_dim = opt.face_feature_dim
-
     # Network Builders
     builder = ModelBuilder()
     nets = []
@@ -204,7 +197,13 @@ def create_model(opt):
             print(f'resume face_net from {ckpt_path}')
     nets.append(face_net)
 
-    net_unet = builder.build_unet(
+    if opt.visual_feature_type == 'both':
+        visual_feature_dim = opt.lip_feature_dim + opt.face_feature_dim
+    elif opt.visual_feature_type == 'lip':
+        visual_feature_dim = opt.lip_feature_dim
+    else:  # face
+        visual_feature_dim = opt.face_feature_dim
+    unet = builder.build_unet(
         opt=opt,
         ngf=opt.unet_ngf,
         input_nc=opt.unet_input_nc,
@@ -213,22 +212,22 @@ def create_model(opt):
         weights=opt.weights_unet)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'unet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'unet_latest.pth')
-        net_unet.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
+        unet.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         if opt.rank == 0:
-            print(f'resume net_unet from {ckpt_path}')
-    nets.append(net_unet)
+            print(f'resume unet from {ckpt_path}')
+    nets.append(unet)
 
-    refine_net = builder.build_refine_net(
+    FRNet = builder.build_FRNet(
         opt=opt,
-        num_layers=opt.refine_num_layers,
-        weights=opt.weights_refine
+        num_layers=opt.FRNet_layers,
+        weights=opt.weights_FRNet
     )
-    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'refine_latest.pth')):
-        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'refine_latest.pth')
-        refine_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
+    if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'FRNet_latest.pth')):
+        ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'FRNet_latest.pth')
+        FRNet.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         if opt.rank == 0:
-            print(f'resume refine_net from {ckpt_path}')
-    nets.append(refine_net)
+            print(f'resume FRNet from {ckpt_path}')
+    nets.append(FRNet)
 
     # construct our audio-visual model
     model = AudioVisualModel(nets, opt)
@@ -239,11 +238,11 @@ def create_model(opt):
 
 def create_optimizer(model, opt):
     model2 = model.module
-    lip_net, face_net, net_unet, net_refine = model2.lip_net, model2.face_net, model2.net_unet, model2.net_refine
+    lip_net, face_net, unet, FRNet = model2.lip_net, model2.face_net, model2.unet, model2.FRNet
     param_groups = [{'params': lip_net.parameters(), 'lr': opt.lr_lipnet},
                     {'params': face_net.parameters(), 'lr': opt.lr_facenet},
-                    {'params': net_unet.parameters(), 'lr': opt.lr_unet},
-                    {'params': net_refine.parameters(), 'lr': opt.lr_refine}]
+                    {'params': unet.parameters(), 'lr': opt.lr_unet},
+                    {'params': FRNet.parameters(), 'lr': opt.lr_FRNet}]
     if opt.optimizer == 'sgd':
         optimizer = torch.optim.SGD(param_groups, momentum=opt.beta1, weight_decay=opt.weight_decay)
     elif opt.optimizer == 'adam':
@@ -315,24 +314,15 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
                     sars_dict[key] += sar_d[key]
             except Exception as e:
                 pass
-            # for mix in range(2, 6):
-            #     sdrs_dict[f"sdr{mix}"] += [1.0]
-            #     sirs_dict[f"sir{mix}"] += [1.0]
-            #     sars_dict[f"sar{mix}"] += [1.0]
-            #     sisnrs_dict[f"sisnr{mix}"] += [1.0]
             if opt.rank == 0:
                 pb.update()
-            # print(f"val, batch: {i + 1} / {num_batch}, rank:{dist.get_rank()}, before barrier", flush=True)
             dist.barrier()
-            # print(f"val, batch:{i + 1} / {num_batch}, rank:{dist.get_rank()}, after metric", flush=True)
     for key in sdrs_dict.keys():
         sdrs_dict[key] = sum(sdrs_dict[key]) / len(sdrs_dict[key])
     for key in sirs_dict.keys():
         sirs_dict[key] = sum(sirs_dict[key]) / len(sirs_dict[key])
     for key in sars_dict.keys():
         sars_dict[key] = sum(sars_dict[key]) / len(sars_dict[key])
-    # for key in sisnrs_dict.keys():
-    #     sisnrs_dict[key] = sum(sisnrs_dict[key]) / len(sisnrs_dict[key])
     if opt.rank == 0:
         if opt.use_mixandseparate_loss:
             avg_mixandseparate_loss = sum(mixandseparate_losses) / len(mixandseparate_losses)
@@ -348,9 +338,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
             writer.add_scalar(f'data/val_{key}', sirs_dict[key], index)
         for key in sars_dict.keys():
             writer.add_scalar(f'data/val_{key}', sars_dict[key], index)
-        # for key in sisnrs_dict.keys():
-        #     writer.add_scalar(f'data/val_{key}', sisnrs_dict[key], index)
-    # print(f"val, rank:{dist.get_rank()}, finish val", flush=True)
     return sdrs_dict['sdr2']
 
 
@@ -360,8 +347,8 @@ def get_mixandseparate_loss(opt, output, loss_mixandseparate):
     mask_predictions_pre = output['mask_predictions_pre']  # (B, 2, 256, 256)
     mask_predictions_aft = output['mask_predictions_aft']  # (B, 2, 256, 256)
     weight = output['weight']
-    mixandseparate_loss = loss_mixandseparate(mask_predictions_pre, gt_masks[:, :, :-1, :], weight) * (1 - opt.after_refine_ratio) + \
-                          loss_mixandseparate(mask_predictions_aft, gt_masks[:, :, :-1, :], weight) * opt.after_refine_ratio
+    mixandseparate_loss = loss_mixandseparate(mask_predictions_pre, gt_masks[:, :, :-1, :], weight) * opt.lamda + \
+                          loss_mixandseparate(mask_predictions_aft, gt_masks[:, :, :-1, :], weight) * (1 - opt.lamda)
     return mixandseparate_loss
 
 
@@ -374,14 +361,8 @@ def get_sisnr_loss(opt, output, loss_sisnr):
     pred_audios_aft = torch.istft(pred_specs_aft, n_fft=opt.n_fft, hop_length=opt.hop_size, win_length=opt.window_size, window=opt.window, center=True)  # (B, L)
     gt_audios = torch.istft(gt_specs, n_fft=opt.n_fft, hop_length=opt.hop_size, win_length=opt.window_size, window=opt.window, center=True)  # (B, L)
 
-    if opt.after_refine_ratio < 1:
-        sisnr_loss_pre = loss_sisnr(pred_audios_pre, gt_audios) * (1 - opt.after_refine_ratio)
-    else:
-        sisnr_loss_pre = 0
-    if opt.after_refine_ratio > 0:
-        sisnr_loss_aft = loss_sisnr(pred_audios_aft, gt_audios) * opt.after_refine_ratio
-    else:
-        sisnr_loss_aft = 0
+    sisnr_loss_pre = loss_sisnr(pred_audios_pre, gt_audios) * opt.lamda
+    sisnr_loss_aft = loss_sisnr(pred_audios_aft, gt_audios) * (1 - opt.lamda)
     sisnr_loss = sisnr_loss_pre + sisnr_loss_aft
     return sisnr_loss
 
@@ -437,7 +418,6 @@ def calculate_sdr(output, window, opt):
 
         sdr_dict, sir_dict, sar_dict, sisnr_dict = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
         pre_num = 0
-        # sisnrs = _cal_SISNR(gt_audios, pred_audios)
         for i in range(len(num_speakers)):
             num_spk = num_speakers[i].item()  # 2, 3, 4, 5
             cur_num = pre_num + num_spk
@@ -468,7 +448,7 @@ def main():
     # create model
     model = create_model(opt)
     model2 = model.module
-    lip_net, face_net, net_unet, net_refine = model2.lip_net, model2.face_net, model2.net_unet, model2.net_refine
+    lip_net, face_net, unet, FRNet = model2.lip_net, model2.face_net, model2.unet, model2.FRNet
 
     # create optimizer
     optimizer = create_optimizer(model, opt)
@@ -502,9 +482,6 @@ def main():
 
     batches_per_epoch = len(data_loader)
     total_batches = batches_per_epoch * opt.epochs
-    # for epoch in range(opt.epochs):
-    #     data_loader.set_epoch(epoch)
-    #     total_batches += len(data_loader)
 
     if opt.rank == 0:
         pb = ProgressBar(total_batches, start=False)
@@ -517,14 +494,7 @@ def main():
         data_loader.set_epoch(epoch)
         iter_start_time = time.time()
 
-        # print(f"train, rank:{dist.get_rank()} has {len(data_loader)} batches", flush=True)
-        # num_batch = len(data_loader)
         time.sleep(5)
-
-        # for batch, data in enumerate(data_loader):
-        #     # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, after load data", flush=True)
-        #     if epoch == start_epoch and (batch + 1) <= start_batch:
-        #         continue
 
         if epoch == start_epoch and start_batch > 0:
             indices = data_loader._get_indices()
@@ -541,9 +511,7 @@ def main():
             optimizer.zero_grad()
 
             # forward pass
-            # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, before model forward", flush=True)
             output = model.forward(data)
-            # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, after model forward", flush=True)
 
             iter_data_forwarded_time = time.time()
 
@@ -560,10 +528,8 @@ def main():
                 reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
                 batch_sisnr_loss.append(reduced_sisnr_loss.item())
 
-            # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, before loss backward", flush=True)
             loss.backward()
             optimizer.step()
-            # print(f"train, batch:{batch + 1} / {num_batch}, rank:{dist.get_rank()}, after loss backward", flush=True)
 
             iter_model_backward_time = time.time()
 
@@ -573,7 +539,6 @@ def main():
                 model_backward_time.append(iter_model_backward_time - iter_data_forwarded_time)
 
             if (batch + 1) % opt.display_freq == 0 and opt.rank == 0:
-                # print('Display training progress at (epoch %d, batch %d)' % (epoch, batch))
                 print(f'Epoch %d, Batch %d: ' % (epoch, batch), end='')
                 if opt.use_mixandseparate_loss:
                     avg_mixandseparate_loss = sum(batch_mixandseparate_loss) / len(batch_mixandseparate_loss)
@@ -591,7 +556,7 @@ def main():
                     opt.writer.add_scalar('data/face_lr', optimizer.state_dict()['param_groups'][1]['lr'],
                                           cumsum_batch)
                     opt.writer.add_scalar('data/unet_lr', optimizer.state_dict()['param_groups'][2]['lr'], cumsum_batch)
-                    opt.writer.add_scalar('data/refine_lr', optimizer.state_dict()['param_groups'][3]['lr'],
+                    opt.writer.add_scalar('data/FRNet_lr', optimizer.state_dict()['param_groups'][3]['lr'],
                                           cumsum_batch)
                     if opt.use_mixandseparate_loss:
                         opt.writer.add_scalar('data/mixandseparate_loss', avg_mixandseparate_loss, cumsum_batch)
@@ -619,15 +584,15 @@ def main():
                         print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, batch, val_sdr))
                         torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
                         torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-                        torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
-                        torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
+                        torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
+                        torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_best.pth'))
 
             if (batch + 1) % opt.save_latest_freq == 0 and opt.rank == 0:
                 print('saving the latest model (epoch %d, batch %d)' % (epoch, batch))
                 torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
                 torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-                torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
-                torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
+                torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
+                torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_latest.pth'))
                 ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch, 'batch': batch + 1, 'cumsum_batch': cumsum_batch + 1, 'best_sdr': best_sdr}
                 torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
@@ -647,8 +612,8 @@ def main():
             print('saving the latest model (epoch %d)' % epoch)
             torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
             torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-            torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
-            torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_latest.pth'))
+            torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
+            torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_latest.pth'))
             ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch + 1, 'batch': 0, 'cumsum_batch': cumsum_batch, 'best_sdr': best_sdr}
             torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
@@ -667,8 +632,8 @@ def main():
                     print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, len(data_loader), val_sdr))
                     torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
                     torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_best.pth'))
-                    torch.save(net_unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
-                    torch.save(net_refine.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'refine_best.pth'))
+                    torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
+                    torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_best.pth'))
 
         # decrease learning rate
         if (epoch + 1) in opt.lr_steps:
