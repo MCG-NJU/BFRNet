@@ -16,9 +16,6 @@ SRUN_ARGS=${SRUN_ARGS:-""}
 port=${MASTER_PORT:-"29789"}
 resume=${resume:-"true"}
 
-sampler_type=${sampler_type:-"normal"}
-curriculum_sample=${curriculum_sample:-1 2 3}
-
 mouthroi_format=${mouthroi_format:-"h5"}
 mp4_root=${mp4_root:-"s3://chy/voxceleb2/mp4"}
 audio_root=${audio_root:-"s3://chy/voxceleb2/mouth_roi_hdf5"}
@@ -92,8 +89,6 @@ srun -p ${PARTITION} \
     --audio_root ${audio_root} \
     --mouth_root ${mouth_root} \
     --mouthroi_format ${mouthroi_format} \
-    --sampler_type ${sampler_type} \
-    --curriculum_sample ${curriculum_sample} \
     --train_file ${train_file} \
     --val_file ${val_file} \
     --checkpoints_dir ${checkpoints_dir} \
