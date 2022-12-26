@@ -17,7 +17,6 @@ class ModelBuilder:
 
         if len(weights) > 0 and os.path.exists(weights):
             if opt.rank == 0:
-            # if dist.get_rank() == 0:
                 print(f'Loading weights for face net: {weights}')
             pretrained_state = torch.load(weights, map_location='cpu')
             model_state = net.state_dict()

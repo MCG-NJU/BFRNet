@@ -30,17 +30,15 @@ batchSize=${batchSize:-8}
 nThreads=${nThreads:-4}
 seed=${seed:-0}
 
-audio_augmentation=${audio_augmentation:-"false"}
-
 display_freq=${display_freq:-10}
 save_latest_freq=${save_latest_freq:-50}
 validation_on=${validation_on:-"true"}
-validation_freq=${validation_freq:-200}
+validation_freq=${validation_freq:-100}
 
-weights_facenet=${weights_facenet:-"a"}
-weights_unet=${weights_unet:-"a"}
-weights_FRNet=${weights_FRNet:-"a"}
-weights_lipnet=${weights_lipnet:-"a"}
+weights_facenet=${weights_facenet:-"."}
+weights_unet=${weights_unet:-"."}
+weights_FRNet=${weights_FRNet:-"."}
+weights_lipnet=${weights_lipnet:-"."}
 
 use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
 use_sisnr_loss=${use_sisnr_loss:-"true"}
@@ -104,7 +102,6 @@ srun -p ${PARTITION} \
     --curriculum_sample ${curriculum_sample} \
     --train_file ${train_file} \
     --val_file ${val_file} \
-    --audio_augmentation ${audio_augmentation} \
     --checkpoints_dir ${checkpoints_dir} \
     --batchSize ${batchSize} \
     --nThreads ${nThreads} \

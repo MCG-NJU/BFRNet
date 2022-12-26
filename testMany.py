@@ -107,10 +107,6 @@ class dataset(data.Dataset):
     def __len__(self):
         return len(self.mix_lst)
 
-    def _audio_augment(self, audio):
-        audio = audio * (random.random() * 1.5 + 0.5)  # 0.5 - 2.0
-        return audio
-
     def process_wav(self, tokens):
         num_speakers = len(tokens)
         # audio

@@ -15,7 +15,6 @@ class TestOptions(BaseOptions):
 
 		self.parser.add_argument('--hop_second', default=2.55, type=float, help='the hop length to perform audio separation in a sliding window approach')
 		self.parser.add_argument('--subtract_mean', default=True, type=bool, help='subtract channelwise mean from input image')
-		self.parser.add_argument('--enable_data_augmentation', type=bool, default=False, help='whether to augment input audio/image')
 		self.parser.add_argument('--spectrogram_type', type=str, default='magonly', choices=('complex', 'magonly'), help='whether to use magonly or complex spectrogram')
 		self.parser.add_argument('--mask_to_use', type=str, default='pred', choices=('gt', 'pred'), help='what phase to use')
 		self.parser.add_argument('--visualize_spectrogram', action='store_true', help='whether to use discriminator')

@@ -102,11 +102,11 @@ def augment_image(image):
     return image
 
 
-def augment_audio(audio):
-    audio = audio * (random.random() * 0.2 + 0.9) # 0.9 - 1.1
-    audio[audio > 1.] = 1.
-    audio[audio < -1.] = -1.
-    return audio
+# def augment_audio(audio):
+#     audio = audio * (random.random() * 0.2 + 0.9) # 0.9 - 1.1
+#     audio[audio > 1.] = 1.
+#     audio[audio < -1.] = -1.
+#     return audio
 
 
 class AudioVisualDataset(BaseDataset):
@@ -137,10 +137,6 @@ class AudioVisualDataset(BaseDataset):
         if self.opt.normalization:
             vision_transform_list.append(normalize)
         self.vision_transform = transforms.Compose(vision_transform_list)
-
-    def _audio_augment(self, audio):
-        audio = audio * (random.random() * 1.5 + 0.5)  # 0.5 - 2.0
-        return audio
 
     def _get_one(self, index):
         # paths
@@ -173,9 +169,6 @@ class AudioVisualDataset(BaseDataset):
         # audio normalize
         if self.opt.audio_normalization:
             audio = normalize(audio)
-        # audio augment
-        if self.opt.audio_augmentation and self.opt.mode == 'train':
-            audio = self._audio_augment(audio)
 
         frame_list = []
         for i in range(self.opt.number_of_face_frames):

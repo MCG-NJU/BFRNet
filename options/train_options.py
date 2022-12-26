@@ -12,19 +12,19 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--sampler_type', type=str, choices=["normal", "curriculum", "curriculum2"], help='data sample strategy')
 		self.parser.add_argument('--curriculum_sample', nargs='+', type=int, default=[1, 2, 3], help='the epochs to add 3mix, 4mix, 5mix')
 
-		self.parser.add_argument('--display_freq', type=int, default=20, help='frequency of displaying average loss and accuracy')
-		self.parser.add_argument('--save_latest_freq', type=int, default=500, help='frequency of saving the latest results')
+		self.parser.add_argument('--display_freq', type=int, default=10, help='frequency of displaying average loss and accuracy')
+		self.parser.add_argument('--save_latest_freq', type=int, default=50, help='frequency of saving the latest results')
 		self.parser.add_argument('--tensorboard', type=str, choices=["true", "false"], default="true", help='use tensorboard to visualize loss change ')
 		self.parser.add_argument('--validation_on', type=str, choices=["true", "false"], default="true", help='whether to test on validation set during training')
-		self.parser.add_argument('--validation_freq', type=int, default=200, help='frequency of testing on validation set')
+		self.parser.add_argument('--validation_freq', type=int, default=100, help='frequency of testing on validation set')
 
 		# model arguments
 		self.parser.add_argument('--visual_pool', type=str, default='maxpool', help='avg or max pool for visual stream feature')
 		self.parser.add_argument('--audio_pool', type=str, default='maxpool', help="avg or max pool for audio stream feature")
 		self.parser.add_argument('--weights_facenet', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
-		self.parser.add_argument('--weights_unet', type=str, default='', help="weights for unet")
-		self.parser.add_argument('--weights_FRNet', type=str, default='', help="weights for FRNet")
-		self.parser.add_argument('--weights_lipnet', type=str, default='', help="weights for lipnet")
+		self.parser.add_argument('--weights_unet', type=str, default='.', help="weights for unet")
+		self.parser.add_argument('--weights_FRNet', type=str, default='.', help="weights for FRNet")
+		self.parser.add_argument('--weights_lipnet', type=str, default='.', help="weights for lipnet")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
@@ -50,7 +50,7 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--scale_h', nargs='+', help='Scale height oft the video', default=[128], type=int)
 		self.parser.add_argument("--crop_size", type=int, default=112, help="Final image scale")
 		self.parser.add_argument('--normalization', type=str, choices=["true", "false"], default="true", help="Should we use input normalization?")
-		self.parser.add_argument('--audio_augmentation', type=str, choices=["true", "false"], default="false", help='whether to augment input audio')
+		# self.parser.add_argument('--audio_augmentation', type=str, choices=["true", "false"], default="false", help='whether to augment input audio')
 		self.parser.add_argument('--audio_normalization', type=str, choices=["true", "false"], default="true", help="whether to normalize audio?")
 
 		# whether to use loss
