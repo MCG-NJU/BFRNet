@@ -60,21 +60,14 @@ class TrainOptions(BaseOptions):
 		# whether to use loss
 		self.parser.add_argument('--use_mixandseparate_loss', default="true", type=str, choices=["true", "false"], help='whether to use mix-and-separate loss')
 		self.parser.add_argument('--use_sisnr_loss', default="true", type=str, choices=["true", "false"], help='whether to use sisnr loss')
-		self.parser.add_argument('--use_contrast_loss', default="true", type=str, choices=["true", "false"], help='whether to use contrast loss')
 		# loss type
 		self.parser.add_argument('--mask_loss_type', default='L2', type=str, choices=('L1', 'L2', 'BCE'), help='type of loss on mask')
 		self.parser.add_argument('--weighted_mask_loss', action='store_true', help="weighted loss")
-		self.parser.add_argument('--contrast_loss_type', default='TripletLossCosine', type=str, choices=('TripletLossCosine', 'NCELoss', 'TripletLossCosine2', 'NCELoss2'), help='type of contrasitve loss')
 
 		# loss weight
 		self.parser.add_argument('--mixandseparate_loss_weight', default=1, type=float, help='weight for reconstruction loss')
 		self.parser.add_argument('--sisnr_loss_weight', default=1, type=float, help='weight for sisnr loss')
-		self.parser.add_argument('--contrast_loss_weight', default=1e-2, type=float, help='weight for contrast loss')
 		self.parser.add_argument('--lamda', default=0.5, type=float, help='the factor to control the ratio of the losses.')
-
-		# contrast params
-		self.parser.add_argument('--contrast_margin', default=0.5, type=float, help='margin for triplet loss')
-		self.parser.add_argument('--contrast_temp', default=0.2, type=float, help='temperature for NCELoss')
 
 		# optimizer arguments
 		self.parser.add_argument('--lr_lipnet', type=float, default=1e-4, help='learning rate for lipreading stream')

@@ -47,7 +47,6 @@ weights_vocal=${weights_vocal:-"a"}
 
 use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
 use_sisnr_loss=${use_sisnr_loss:-"true"}
-use_contrast_loss=${use_contrast_loss:-"false"}
 
 mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
 sisnr_loss_weight=${sisnr_loss_weight:-1}
@@ -56,10 +55,6 @@ lamda=${lamda:-0.5}
 FRNet_layers=${FRNet_layers:-2}
 
 mask_loss_type=${mask_loss_type:-"L2"}
-contrast_loss_type=${contrast_loss_type:-"TripletLossCosine"}
-contrast_loss_weight=${contrast_loss_weight:-1e-2}
-contrast_margin=${contrast_margin:-0.5}
-contrast_temp=${contrast_temp:-0.2}
 
 epochs=${epochs:-19}
 lr_steps=${lr_steps:-12 15}
@@ -126,16 +121,11 @@ srun -p ${PARTITION} \
     --validation_freq ${validation_freq} \
     --use_mixandseparate_loss ${use_mixandseparate_loss} \
     --use_sisnr_loss ${use_sisnr_loss} \
-    --use_contrast_loss ${use_contrast_loss} \
     --mask_loss_type ${mask_loss_type} \
     --mixandseparate_loss_weight ${mixandseparate_loss_weight} \
     --sisnr_loss_weight ${sisnr_loss_weight} \
     --lamda ${lamda} \
     --FRNet_layers ${FRNet_layers} \
-    --contrast_loss_type ${contrast_loss_type} \
-    --contrast_loss_weight ${contrast_loss_weight} \
-    --contrast_margin ${contrast_margin} \
-    --contrast_temp ${contrast_temp} \
     --epochs ${epochs} \
     --lr_steps ${lr_steps} \
     --lr_lipnet ${lr_lipnet} \

@@ -294,7 +294,6 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
         time.sleep(5)
 
         for i, val_data in enumerate(data_loader_val):
-            # print(f"val, batch:{i + 1} / {num_batch}, rank:{dist.get_rank()}, before forward", flush=True)
             output = model.forward(val_data)
             if opt.use_mixandseparate_loss:
                 mixandseparate_loss = get_mixandseparate_loss(opt, output, crit['loss_mixandseparate']) * opt.mixandseparate_loss_weight
