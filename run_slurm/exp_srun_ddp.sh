@@ -133,7 +133,6 @@ srun -p ${PARTITION} \
     --window_size ${window_size} \
     --n_fft ${n_fft} \
     --tensorboard ${tensorboard} \
-    --weighted_mask_loss \
     --visual_pool maxpool \
     --audio_pool maxpool \
     --lipnet_config_path configs/lrw_snv1x_tcn2x.json \

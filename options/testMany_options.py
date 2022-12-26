@@ -29,7 +29,6 @@ class TestOptions(BaseOptions):
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
-		self.parser.add_argument('--weighted_mask_loss', action='store_true', help="weighted loss")
 		self.parser.add_argument('--lipreading_config_path', type=str, help='path to the config file of lipreading')
 		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lipmotion', 'identity', 'both'), help='type of visual feature to use')
 
@@ -46,8 +45,7 @@ class TestOptions(BaseOptions):
 		self.parser.add_argument('--l2_feature_normalization',default="false",choices=["false", "true"],help="whether l2 nomalizing identity/audio features")
 		self.parser.add_argument('--reliable_face',default="false",choices=["false","true"],help="whether to use the face that has high detection score")
 
-		self.parser.add_argument('--refine_num_layers', type=int, default=1, help='number of refine model layers')
-		self.parser.add_argument('--residual_last', type=str, default="false", help='number of refine model layers')
+		self.parser.add_argument('--FRNet_layers', type=int, default=1, help='number of refine model layers')
 
 		#preprocessing
 		self.parser.add_argument('--scale_w',nargs='+',help='Scale width of the video',default=[128],type=int)

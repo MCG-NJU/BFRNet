@@ -186,7 +186,6 @@ class AudioVisualDataset(BaseDataset):
         return frames, audio, mouthroi
 
     def __getitem__(self, index_batches):
-        # print(f"rank:{dist.get_rank()}, getitem", flush=True)
         if self.client is None:
             self.client = Client(backend='petrel')
 
@@ -240,8 +239,6 @@ class AudioVisualDataset(BaseDataset):
         data['audio_spec_mix'] = torch.cat(audio_spec_mix_batch)
         data['num_speakers'] = torch.cat(num_speakers_batch)
         data['indexes'] = torch.cat(indexes_batch)
-
-        # print(f"rank:{dist.get_rank()} finish getitem", flush=True)
 
         return data
 
