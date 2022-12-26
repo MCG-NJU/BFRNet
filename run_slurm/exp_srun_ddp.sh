@@ -31,8 +31,6 @@ nThreads=${nThreads:-4}
 seed=${seed:-0}
 
 audio_augmentation=${audio_augmentation:-"false"}
-noise_file=${noise_file:-"s3://chy/noise/filelist.txt"}
-noise_root=${noise_root:-"s3://chy/noise/audio"}
 
 display_freq=${display_freq:-10}
 save_latest_freq=${save_latest_freq:-50}
@@ -43,7 +41,6 @@ weights_facenet=${weights_facenet:-"a"}
 weights_unet=${weights_unet:-"a"}
 weights_FRNet=${weights_FRNet:-"a"}
 weights_lipnet=${weights_lipnet:-"a"}
-weights_vocal=${weights_vocal:-"a"}
 
 use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
 use_sisnr_loss=${use_sisnr_loss:-"true"}
@@ -62,7 +59,6 @@ lr_lipnet=${lr_lipnet:-1e-4}
 lr_facenet=${lr_facenet:-1e-4}
 lr_unet=${lr_unet:-1e-4}
 lr_FRNet=${lr_FRNet:-1e-4}
-lr_vocal=${lr_vocal:-1e-4}
 decay_factor=${decay_factor:-0.1}
 
 unet_input_nc=${unet_input_nc:-2}
@@ -94,7 +90,7 @@ srun -p ${PARTITION} \
     --ntasks-per-node=${GPUS_PER_NODE} \
     --cpus-per-task=${CPUS_PER_TASK} \
     --kill-on-bad-exit=1 \
-    --quotatype=auto \
+    --quotatype=spot \
     ${SRUN_ARGS} \
     python -u train.py \
     --port ${port} \
@@ -109,8 +105,6 @@ srun -p ${PARTITION} \
     --train_file ${train_file} \
     --val_file ${val_file} \
     --audio_augmentation ${audio_augmentation} \
-    --noise_file ${noise_file} \
-    --noise_root ${noise_root} \
     --checkpoints_dir ${checkpoints_dir} \
     --batchSize ${batchSize} \
     --nThreads ${nThreads} \
@@ -132,12 +126,10 @@ srun -p ${PARTITION} \
     --lr_facenet ${lr_facenet} \
     --lr_unet ${lr_unet} \
     --lr_FRNet ${lr_FRNet} \
-    --lr_vocal ${lr_vocal} \
     --weights_facenet ${weights_facenet} \
     --weights_unet ${weights_unet} \
     --weights_FRNet ${weights_FRNet} \
     --weights_lipnet ${weights_lipnet} \
-    --weights_vocal ${weights_vocal} \
     --decay_factor ${decay_factor} \
     --unet_input_nc ${unet_input_nc} \
     --unet_output_nc ${unet_output_nc} \

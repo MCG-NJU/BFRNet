@@ -54,12 +54,6 @@ def set_random_seed(seed):
     np.random.seed(seed)
 
 
-def check_input_valid(opt):
-    # check invalidation of recognition parameters
-    if opt.audio_augmentation:
-        assert opt.noise_file is not None and opt.noise_root is not None
-
-
 ############## DDP relative
 def _init_slurm(opt):
     proc_id = int(os.environ['SLURM_PROCID'])
@@ -118,8 +112,6 @@ def _init():
             setattr(opt, x, True)
         elif value == "false":
             setattr(opt, x, False)
-
-    check_input_valid(opt)
 
     # set random seed
     set_random_seed(opt.seed)

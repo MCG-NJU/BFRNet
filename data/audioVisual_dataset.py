@@ -120,24 +120,14 @@ class AudioVisualDataset(BaseDataset):
         # load videos path
         if opt.mode == 'train':
             anno_file = opt.train_file
-            noise_file = opt.noise_file
-            noise_root = opt.noise_root
         else:
             anno_file = opt.val_file
-            noise_file = None
-            noise_root = None
 
         self.client = Client(backend='petrel')
 
         with io.BytesIO(self.client.get(anno_file)) as af:
             self.videos_path = [d.decode('utf-8').strip() for d in af.readlines()]
         self.length = len(self.videos_path)
-
-        if opt.audio_augmentation and noise_file is not None and noise_root is not None:
-            with io.BytesIO(self.client.get(noise_file)) as nf:
-                self.noise_path = [os.path.join(noise_root, d.decode('utf-8').strip()) for d in nf.readlines()]
-        else:
-            self.noise_path = None
 
         normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406],

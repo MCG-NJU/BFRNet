@@ -8,8 +8,6 @@ class TrainOptions(BaseOptions):
 
 		self.parser.add_argument('--train_file', type=str, required=True, help='train file')
 		self.parser.add_argument('--val_file', type=str, required=True, help='val file')
-		self.parser.add_argument('--noise_file', type=str, help='noise file')
-		self.parser.add_argument('--noise_root', type=str, help='noise root')
 
 		self.parser.add_argument('--sampler_type', type=str, choices=["normal", "curriculum", "curriculum2"], help='data sample strategy')
 		self.parser.add_argument('--curriculum_sample', nargs='+', type=int, default=[1, 2, 3], help='the epochs to add 3mix, 4mix, 5mix')
@@ -27,7 +25,6 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--weights_unet', type=str, default='', help="weights for unet")
 		self.parser.add_argument('--weights_FRNet', type=str, default='', help="weights for FRNet")
 		self.parser.add_argument('--weights_lipnet', type=str, default='', help="weights for lipnet")
-		self.parser.add_argument('--weights_vocal', type=str, default='', help="weights for vocal net")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
@@ -47,7 +44,6 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--sigmoidal_compression_b', type=int, default=0, help="sigmoidal compression b")
 		self.parser.add_argument('--mask_clip_threshold', type=int, default=5, help="mask_clip_threshold")
 		self.parser.add_argument('--l2_feature_normalization', type=str, choices=["true", "false"], default="false", help="whether l2 nomalizing face/audio features")
-		# self.parser.add_argument('--gt_percentage', type=float, default=0.5, help="percentage to use gt embeddings")
 
 		# preprocessing
 		self.parser.add_argument('--scale_w', nargs='+', help='Scale width of the video', default=[128], type=int)
@@ -74,7 +70,6 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--lr_facenet', type=float, default=1e-5, help='learning rate for face stream')
 		self.parser.add_argument('--lr_unet', type=float, default=1e-4, help='learning rate for unet')
 		self.parser.add_argument('--lr_FRNet', type=float, default=1e-4, help='learning rate for refine net')
-		self.parser.add_argument('--lr_vocal', type=float, default=1e-4, help='learning rate for vocal')
 
 		self.parser.add_argument('--epochs', type=int, default=1, help='# of epochs to train, set to 1 because we are doing random sampling from the whole dataset')
 		self.parser.add_argument('--lr_steps', nargs='+', type=int, default=[6, 8], help='steps to drop LR in training samples')

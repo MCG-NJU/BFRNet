@@ -1,12 +1,4 @@
-#!/usr/bin/env python
-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 import io
-# import math
 import math
 import os
 import os.path as osp
@@ -21,7 +13,6 @@ from models.models import ModelBuilder
 from models.audioVisual_model import AudioVisualModel
 from data.audioVisual_dataset import get_preprocessing_pipelines, load_frame
 from facenet_pytorch import MTCNN
-# from torch_mir_eval import bss_eval_sources
 from mir_eval import separation
 from pypesq import pesq
 from pystoi import stoi
@@ -42,12 +33,6 @@ vision_transform_list.append(normalize)
 vision_transform = transforms.Compose(vision_transform_list)
 lipreading_preprocessing_func = get_preprocessing_pipelines()['test']
 
-
-# def getSeparationMetrics(audio_pred, audio_gt):
-#     # audio_pred, audio_gt: N, L
-#     (sdr, sir, sar, perm) = bss_eval_sources(audio_gt, audio_pred, False)
-#     # print(sdr, sir, sar, perm)
-#     return torch.mean(sdr), torch.mean(sir), torch.mean(sar)
 
 
 def getSeparationMetrics_np(audio_pred, audio_gt):
