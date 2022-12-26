@@ -29,7 +29,7 @@ weights_unet=${weights_unet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/che
 weights_refine=${weights_refine:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
 # weights_refine=${weights_refine:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/refine_best.pth"}
 
-refine_num_layers=${refine_num_layers:-2}
+FRNet_layers=${FRNet_layers:-2}
 residual_last=${residual_last:-"false"}
 
 PY_ARGS=${@:3}  # Any arguments from the forth one are captured by this
@@ -80,6 +80,6 @@ srun -p ${PARTITION} \
     --lipreading_extract_feature "true" \
     --number_of_identity_frames 1 \
     --audio_normalization "true" \
-    --refine_num_layers ${refine_num_layers} \
+    --FRNet_layers ${FRNet_layers} \
     --residual_last "false" \
     --reliable_face "true"

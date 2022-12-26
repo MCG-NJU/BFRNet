@@ -36,19 +36,19 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--face_feature_dim', type=int, default=128, help="dimension of face feature map")
 
 		# refine model arguments
-		self.parser.add_argument('--refine_num_layers', type=int, default=1, help="number of the encoder layers in refine model")
+		self.parser.add_argument('--FRNet_layers', type=int, default=1, help="number of layers in FRNet")
 		self.parser.add_argument('--residual_last', type=str, choices=["true", "false"], help="whether to use residual in the last layer of refine model")
 		self.parser.add_argument('--refine_kernel_size', type=int, choices=[1, 3], help="the kernel size of the av-convolution in refine module")
 
 		self.parser.add_argument('--visual_feature_type', default='both', type=str, choices=('lip', 'face', 'both'), help='type of visual feature to use')
-		self.parser.add_argument('--number_of_face_frames', type=int, default=1, help="number of identity frames to use")
+		self.parser.add_argument('--number_of_face_frames', type=int, default=1, help="number of face frames to use")
 		self.parser.add_argument('--compression_type', type=str, default='none', choices=('hyperbolic', 'sigmoidal', 'none'), help="type of compression on masks")
 		self.parser.add_argument('--hyperbolic_compression_K', type=int, default=10, help="hyperbolic compression K")
 		self.parser.add_argument('--hyperbolic_compression_C', type=float, default=0.1, help="hyperbolic compression C")
 		self.parser.add_argument('--sigmoidal_compression_a', type=float, default=0.1, help="sigmoidal compression a")
 		self.parser.add_argument('--sigmoidal_compression_b', type=int, default=0, help="sigmoidal compression b")
 		self.parser.add_argument('--mask_clip_threshold', type=int, default=5, help="mask_clip_threshold")
-		self.parser.add_argument('--l2_feature_normalization', type=str, choices=["true", "false"], default="false", help="whether l2 nomalizing identity/audio features")
+		self.parser.add_argument('--l2_feature_normalization', type=str, choices=["true", "false"], default="false", help="whether l2 nomalizing face/audio features")
 		# self.parser.add_argument('--gt_percentage', type=float, default=0.5, help="percentage to use gt embeddings")
 
 		# preprocessing
@@ -80,7 +80,7 @@ class TrainOptions(BaseOptions):
 
 		# optimizer arguments
 		self.parser.add_argument('--lr_lipnet', type=float, default=1e-4, help='learning rate for lipreading stream')
-		self.parser.add_argument('--lr_facenet', type=float, default=1e-5, help='learning rate for identity stream')
+		self.parser.add_argument('--lr_facenet', type=float, default=1e-5, help='learning rate for face stream')
 		self.parser.add_argument('--lr_unet', type=float, default=1e-4, help='learning rate for unet')
 		self.parser.add_argument('--lr_FRNet', type=float, default=1e-4, help='learning rate for refine net')
 		self.parser.add_argument('--lr_vocal', type=float, default=1e-4, help='learning rate for vocal')

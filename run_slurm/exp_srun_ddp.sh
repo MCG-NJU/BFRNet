@@ -53,7 +53,7 @@ mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
 sisnr_loss_weight=${sisnr_loss_weight:-1}
 lamda=${lamda:-0.5}
 
-refine_num_layers=${refine_num_layers:-2}
+FRNet_layers=${FRNet_layers:-2}
 residual_last=${residual_last:-"true"}
 refine_kernel_size=${refine_kernel_size:-1}
 
@@ -133,7 +133,7 @@ srun -p ${PARTITION} \
     --mixandseparate_loss_weight ${mixandseparate_loss_weight} \
     --sisnr_loss_weight ${sisnr_loss_weight} \
     --lamda ${lamda} \
-    --refine_num_layers ${refine_num_layers} \
+    --FRNet_layers ${FRNet_layers} \
     --residual_last ${residual_last} \
     --refine_kernel_size ${refine_kernel_size} \
     --contrast_loss_type ${contrast_loss_type} \
