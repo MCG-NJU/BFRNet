@@ -18,8 +18,6 @@ from pystoi import stoi
 from mmcv import ProgressBar
 from petrel_client.client import Client
 import h5py
-import soundfile as sf
-import cv2
 from utils.utils import collate_fn
 
 
@@ -33,8 +31,7 @@ vision_transform = transforms.Compose(vision_transform_list)
 lipreading_preprocessing_func = get_preprocessing_pipelines()['test']
 
 
-
-def getSeparationMetrics_np(audio_pred, audio_gt):
+def getSeparationMetrics(audio_pred, audio_gt):
     (sdr, sir, sar, perm) = separation.bss_eval_sources(audio_gt, audio_pred, False)
     # return sdr, sir, sar
     return np.mean(sdr), np.mean(sir), np.mean(sar)
@@ -123,17 +120,14 @@ class dataset(data.Dataset):
             audio_length.append(len(audio))
         target_length = min(audio_length)
 
-        for i in range(num_speakers):  # 截断audio并进行normalize
+        for i in range(num_speakers):
             audios[i] = audios[i][:target_length]
         audios = np.array(audios)
-        # 将target_length补到大于等于target_length且是40800的倍数的最小值
         margin = int(2.55 * 16000)
         target = ((target_length + margin - 1) // margin) * margin
         seg = target // margin
 
-        # 补充
         audios = supp_audio(audios, target)  # num_speakers, target
-        # 变成seg段2.55秒的长度
         audios = audios.reshape(num_speakers, seg, margin).transpose((1, 0, 2))  # seg, num_speakers, margin
         audios = audio_normalize(audios) / num_speakers
         audios = torch.FloatTensor(audios)  # seg, num_speakers, margin
@@ -193,7 +187,6 @@ class dataset(data.Dataset):
     def process_frame(self, tokens, seg):
         num_speakers = len(tokens)
         frames = []
-        # scores = []
         for n in range(num_speakers):
             best_score = 0
             video_path = osp.join(self.visual_direc, tokens[n]) + ".mp4"
@@ -210,7 +203,6 @@ class dataset(data.Dataset):
                         best_score = scores[0]
                 except:
                     pass
-            # scores.append(best_score)
             try:
                 best_frame = torch.tensor(np.array(best_frame))  # H, W, C
                 best_frame = best_frame.permute(2, 0, 1).unsqueeze(0)  # 1, C, H, W
@@ -272,40 +264,7 @@ class dataset(data.Dataset):
         return data
 
 
-def visualize(i, sdr, num_speaker, audio_mix, audios, sep_audios, mouthrois, frames):
-    mouthrois = mouthrois.detach().cpu().numpy()  # (n, 1, num, 88, 88)
-    mouthrois = ((mouthrois * 0.165 + 0.421) * 255).astype(np.uint8)
-
-    frames = np.transpose(frames.detach().cpu().numpy(), (0, 2, 3, 1))  # (n, 224, 224, 3)
-    frames[:, :, :, 0] = frames[:, :, :, 0] * 0.229 + 0.485
-    frames[:, :, :, 1] = frames[:, :, :, 1] * 0.224 + 0.456
-    frames[:, :, :, 2] = frames[:, :, :, 2] * 0.225 + 0.406
-    frames = (frames * 255).astype(np.uint8)
-
-    # 保存audio_mix, audios, mouthrois, frames, sep_audios
-    os.makedirs(f"sep/num{i}_{round(float(sdr), 2)}", exist_ok=True)
-    dirname = f"sep/num{i}_{round(float(sdr), 2)}"
-    for n in range(num_speaker):
-        sf.write(f"{dirname}/audio_mix{n}.wav", audio_mix[n], 16000)
-        sf.write(f"{dirname}/audios{n}.wav", audios[n], 16000)
-        sf.write(f"{dirname}/sep_audios{n}.wav", sep_audios[n], 16000)
-
-        dim = (88, 88)
-        fourcc = cv2.VideoWriter_fourcc(*'FMP4')
-        speaker_video = cv2.VideoWriter(f"{dirname}/mouthrois{n}.mp4", fourcc, 25.0, dim, isColor=False)
-        for mouth in mouthrois[n][0]:
-            speaker_video.write(mouth)
-        speaker_video.release()
-
-        cv2.imwrite(f"{dirname}/frames{n}.jpg", frames[n])
-
-
-def save_statistics(file, sdr, num_speaker, audio_mix, audios, sep_audios, mouthrois, frames, scores):
-    for n in range(num_speaker):
-        file.write(f"{round(sdr[n], 2)}\t{len(audio_mix[n])}\t{np.mean(audio_mix[n])}\t{np.mean(audios[n])}\t{np.mean(sep_audios[n])}\t{torch.mean(mouthrois[n])}\t{torch.mean(frames[n])}\t{scores[n].item()}\n")
-
-
-def process_mixture(opt, model, data_loader):
+def process_mixture(model, data_loader):
     model.eval()
     sdr_list, sir_list, sar_list = [], [], []
     sdri_list, siri_list = [], []
@@ -350,8 +309,8 @@ def process_mixture(opt, model, data_loader):
                 tmp_audio = tmp_audio.numpy()
                 tmp_audio_mix = tmp_audio_mix.numpy()
 
-                sdr, sir, sar = getSeparationMetrics_np(tmp_pred_audio, tmp_audio)
-                sdr_mix, sir_mix, sar_mix = getSeparationMetrics_np(tmp_audio_mix, tmp_audio)
+                sdr, sir, sar = getSeparationMetrics(tmp_pred_audio, tmp_audio)
+                sdr_mix, sir_mix, sar_mix = getSeparationMetrics(tmp_audio_mix, tmp_audio)
 
                 sdr = np.mean(sdr)
                 sir = np.mean(sir)
@@ -412,35 +371,34 @@ def main():
 
     # Network Builders
     builder = ModelBuilder()
-    net_lipreading = builder.build_lipreadingnet(
+    lip_net = builder.build_lipnet(
         opt=opt,
-        config_path=opt.lipreading_config_path,
-        weights=opt.weights_lipreadingnet,
-        extract_feats=opt.lipreading_extract_feature)
-    #if identity feature dim is not 512, for resnet reduce dimension to this feature dim
-    if opt.identity_feature_dim != 512:
+        config_path=opt.lipnet_config_path,
+        weights=opt.weights_lipnet)
+    #if face feature dim is not 512, for resnet reduce dimension to this feature dim
+    if opt.face_feature_dim != 512:
         opt.with_fc = True
     else:
         opt.with_fc = False
-    net_facial_attributes = builder.build_facial(
+    face_net = builder.build_facenet(
             opt=opt,
             pool_type=opt.visual_pool,
-            fc_out=opt.identity_feature_dim,
+            fc_out=opt.face_feature_dim,
             with_fc=opt.with_fc,
-            weights=opt.weights_facial)
-    net_unet = builder.build_unet(
+            weights=opt.weights_facenet)
+    unet = builder.build_unet(
             opt=opt,
             ngf=opt.unet_ngf,
             input_nc=opt.unet_input_nc,
             output_nc=opt.unet_output_nc,
             weights=opt.weights_unet)
-    net_refine = builder.build_refine_net(
+    FRNet = builder.build_FRNet(
         opt=opt,
-        num_layers=opt.refine_num_layers,
-        weights=opt.weights_refine
+        num_layers=opt.FRNet_layers,
+        weights=opt.weights_FRNet
     )
 
-    nets = (net_lipreading, net_facial_attributes, net_unet, net_refine)
+    nets = (lip_net, face_net, unet, FRNet)
 
     # construct our audio-visual model
     model = AudioVisualModel(nets, opt).cuda()
@@ -455,7 +413,7 @@ def main():
         num_workers=opt.nThreads,
         collate_fn=collate_fn
     )
-    process_mixture(opt, model, data_loader)
+    process_mixture(model, data_loader)
 
 
 if __name__ == '__main__':

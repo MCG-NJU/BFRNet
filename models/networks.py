@@ -135,10 +135,10 @@ class Resnet18(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, input_dim=512, dropout=0.1):
         super(MultiHeadAttention, self).__init__()
-        self.att_fc_q = nn.Linear(input_dim, input_dim)  # attention开始前的fc层
+        self.att_fc_q = nn.Linear(input_dim, input_dim)
         self.att_fc_k = nn.Linear(input_dim, input_dim)
         self.att_fc_v = nn.Linear(input_dim, input_dim)
-        self.att_fc = nn.Linear(input_dim, input_dim)  # attention最后的fc层
+        self.att_fc = nn.Linear(input_dim, input_dim)
         self.att_drop = nn.Dropout(dropout)
 
     def forward(self, query, key, value):
@@ -330,7 +330,7 @@ class Recovery(nn.Module):
     def forward(self, query, key, value):
         # S, T, C
         for n in range(self.num_layers):
-            query = self.layers[n](query, key, value)  # key和value保持不变
+            query = self.layers[n](query, key, value)
         result = self.linear(query)  # S, T, C
         return result
 

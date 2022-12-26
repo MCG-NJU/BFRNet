@@ -12,7 +12,6 @@ import platform
 import time
 
 from options.train_options import TrainOptions
-
 from data.data_loader import CreateDataLoader
 from models.models import ModelBuilder
 from models.audioVisual_model import AudioVisualModel
@@ -325,8 +324,7 @@ def get_sisnr_loss(opt, output, loss_sisnr):
     return sisnr_loss
 
 
-def _getSeparationMetrics(src, dst):  # src: (B, N, L), N为混合数
-    # 一定是同一个混合样本的 src 和 dst
+def _getSeparationMetrics(src, dst):  # src: (B, N, L)
     # audio1: (batch, length)
     # src = torch.stack((audio1, audio2), dim=1).cuda()  # (B, N, L)
     # dst = torch.stack((audio1_gt, audio2_gt), dim=1).cuda()
@@ -546,7 +544,6 @@ def main():
             if opt.rank == 0:
                 pb.update()
 
-            # 防止进程互锁
             dist.barrier()
 
         if opt.rank == 0:  # save latest model for each epoch

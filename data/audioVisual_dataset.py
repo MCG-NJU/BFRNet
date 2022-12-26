@@ -11,7 +11,6 @@ import torchvision.transforms as transforms
 import torch
 from utils.lipreading_preprocess import *
 from utils.video_reader import VideoReader
-import bisect
 from petrel_client.client import Client
 import io
 
@@ -73,15 +72,15 @@ def get_mouthroi_audio(mouthroi, audio, window, num_of_mouthroi_frames, audio_sa
     return mouthroi, audio_sample
 
 
-def generate_spectrogram_magphase(audio, stft_frame, stft_hop, n_fft):
-    spectro = librosa.core.stft(audio, hop_length=stft_hop, n_fft=n_fft, win_length=stft_frame, center=True)
-    spectro_mag, spectro_phase = librosa.core.magphase(spectro)  # 幅度, 模长
-    spectro_mag = np.expand_dims(spectro_mag, axis=0)  # 相位
-    if with_phase:
-        spectro_phase = np.expand_dims(np.angle(spectro_phase), axis=0)  # 相角
-        return spectro_mag, spectro_phase
-    else:
-        return spectro_mag
+# def generate_spectrogram_magphase(audio, stft_frame, stft_hop, n_fft):
+#     spectro = librosa.core.stft(audio, hop_length=stft_hop, n_fft=n_fft, win_length=stft_frame, center=True)
+#     spectro_mag, spectro_phase = librosa.core.magphase(spectro)
+#     spectro_mag = np.expand_dims(spectro_mag, axis=0)
+#     if with_phase:
+#         spectro_phase = np.expand_dims(np.angle(spectro_phase), axis=0)
+#         return spectro_mag, spectro_phase
+#     else:
+#         return spectro_mag
 
 
 def generate_spectrogram_complex(audio, stft_frame, stft_hop, n_fft):
@@ -100,13 +99,6 @@ def augment_image(image):
     enhancer = ImageEnhance.Color(image)
     image = enhancer.enhance(random.random()*0.6 + 0.7)
     return image
-
-
-# def augment_audio(audio):
-#     audio = audio * (random.random() * 0.2 + 0.9) # 0.9 - 1.1
-#     audio[audio > 1.] = 1.
-#     audio[audio < -1.] = -1.
-#     return audio
 
 
 class AudioVisualDataset(BaseDataset):
@@ -129,13 +121,13 @@ class AudioVisualDataset(BaseDataset):
             self.videos_path = [d.decode('utf-8').strip() for d in af.readlines()]
         self.length = len(self.videos_path)
 
-        normalize = transforms.Normalize(
+        vision_normalize = transforms.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]
         )
         vision_transform_list = [transforms.Resize(224), transforms.ToTensor()]
         if self.opt.normalization:
-            vision_transform_list.append(normalize)
+            vision_transform_list.append(vision_normalize)
         self.vision_transform = transforms.Compose(vision_transform_list)
 
     def _get_one(self, index):

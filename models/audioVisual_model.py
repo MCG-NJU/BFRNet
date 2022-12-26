@@ -27,7 +27,7 @@ class AudioVisualModel(torch.nn.Module):
 
     # input mask
     def _step2_refine(self, pred_masks, visual_features, num_speakers):
-        # preds: (B, 2, 257, 256), visual_features: (B, 640, 64);  输入mask,输出mask
+        # preds: (B, 2, 257, 256), visual_features: (B, 640, 64)
         pred_masks_clone = pred_masks.clone()  # (B, 2, 256, 256)
         cumsum = 0
         for n in num_speakers:  # 2, 2, 3, 4, 5, 2, 2, 3, 4, 5
@@ -76,23 +76,6 @@ class AudioVisualModel(torch.nn.Module):
         audio_spec_mix = input['audio_spec_mix']  # B, 2, 257, 256
         mouthrois = input['mouthrois']  # B, 1, 64, 88, 88
         frames = input['frames']  # B, 3, 224, 224
-
-        # # calculate ground-truth masks
-        # gt_mask_real = (audio_specs[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_specs[:, 1, :, :] * audio_spec_mix[:, 1, :, :]) / \
-        #                (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
-        # gt_mask_imag = (audio_specs[:, 1, :, :] * audio_spec_mix[:, 0, :, :] - audio_specs[:, 0, :, :] * audio_spec_mix[:, 1, :, :]) / \
-        #                (audio_spec_mix[:, 0, :, :] * audio_spec_mix[:, 0, :, :] + audio_spec_mix[:, 1, :, :] * audio_spec_mix[:, 1, :, :] + 1e-30)
-        # gt_masks = torch.cat((gt_mask_real.unsqueeze(1), gt_mask_imag.unsqueeze(1)), 1)
-        # gt_masks.clamp_(-self.opt.mask_clip_threshold, self.opt.mask_clip_threshold)  # B, 2, 257, 256
-
-        # if self.opt.compression_type == 'hyperbolic':
-        #     K = self.opt.hyperbolic_compression_K
-        #     C = self.opt.hyperbolic_compression_C
-        #     gt_masks = K * (1 - torch.exp(-C * gt_masks)) / (1 + torch.exp(-C * gt_masks))
-        # elif self.opt.compression_type == 'sigmoidal':
-        #     a = self.opt.sigmoidal_compression_a
-        #     b = self.opt.sigmoidal_compression_b
-        #     gt_masks = 1 / (1 + torch.exp(-a * gt_masks + b))
 
         # pass through visual stream and extract lip features
         lip_features = self.lip_net(Variable(mouthrois, requires_grad=False), self.opt.num_frames)  # (B, 512, 1, 64)

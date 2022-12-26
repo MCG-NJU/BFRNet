@@ -1,6 +1,6 @@
 import torch.utils.data
 from data.base_data_loader import BaseDataLoader
-from data.curriculum_sampler import *
+# from data.curriculum_sampler import *
 from utils.utils import collate_fn
 import math
 import torch
@@ -67,10 +67,8 @@ class CustomDistributedSampler(Sampler):
         self.num_replicas = num_replicas
         self.rank = rank
         self.epoch = 0
-        # #2:#3:#4:#5 = 2:1:1:1, 每两个#2之后跟1个#3,#4,#5, 每批次16个视频
-        self.num_batches = math.ceil(len(self.dataset) / self.num_replicas / 16)  # 每个gpu上的batch数量,一个batch包括5个samples,16个视频
-        self.total_size = self.num_batches * self.num_replicas * 16  # 一个epoch所有gpu见到的视频总数
-        # self.num_samples = self.num_batches * 5  # 每个gpu上的samples
+        self.num_batches = math.ceil(len(self.dataset) / self.num_replicas / 16)
+        self.total_size = self.num_batches * self.num_replicas * 16
         self.shuffle = shuffle
         self.seed = seed
 
@@ -93,21 +91,15 @@ class CustomDistributedSampler(Sampler):
 
         indices_ = []
         for i in range(self.num_batches):
-            # indices_ += [(indices[16*i], indices[16*i+1]), (indices[16*i+2], indices[16*i+3])]
-            # indices_ += [(indices[16*i+4], indices[16*i+5], indices[16*i+6])]
-            # indices_ += [(indices[16*i+7], indices[16*i+8], indices[16*i+9], indices[16*i+10])]
-            # indices_ += [(indices[16*i+11], indices[16*i+12], indices[16*i+13], indices[16*i+14], indices[16*i+15])]
             indices_.append([(indices[16 * i], indices[16 * i + 1]),
                              (indices[16 * i + 2], indices[16 * i + 3]),
                              (indices[16 * i + 4], indices[16 * i + 5], indices[16 * i + 6]),
                              (indices[16 * i + 7], indices[16 * i + 8], indices[16 * i + 9], indices[16 * i + 10]),
                              (indices[16 * i + 11], indices[16 * i + 12], indices[16 * i + 13], indices[16 * i + 14], indices[16 * i + 15])])
-        # indices = indices_
 
         return indices_
 
     def __len__(self):
-        # return self.num_samples
         return self.num_batches
 
     def set_epoch(self, epoch):
@@ -146,15 +138,14 @@ class CustomDatasetDataLoader(BaseDataLoader):
     def initialize(self, opt):
         BaseDataLoader.initialize(self, opt)
         self.dataset = CreateDataset(opt)
-        # if opt.mode == "train":
-        if opt.sampler_type == "normal":
-            sampler = CustomDistributedSampler(self.dataset, shuffle=True)
-        elif opt.sampler_type == "curriculum":
-            sampler = CurriculumDistributedSampler(self.dataset, opt.curriculum_sample, shuffle=True)
-        elif opt.sampler_type == "curriculum2":
-            sampler = CurriculumDistributedSampler2(self.dataset, opt.curriculum_sample, shuffle=True)
-        else:
-            assert ValueError(f'wrong opt.sampler_type: {opt.sampler_type}')
+        # if opt.sampler_type == "normal":
+        sampler = CustomDistributedSampler(self.dataset, shuffle=True)
+        # elif opt.sampler_type == "curriculum":
+        #     sampler = CurriculumDistributedSampler(self.dataset, opt.curriculum_sample, shuffle=True)
+        # elif opt.sampler_type == "curriculum2":
+        #     sampler = CurriculumDistributedSampler2(self.dataset, opt.curriculum_sample, shuffle=True)
+        # else:
+        #     assert ValueError(f'wrong opt.sampler_type: {opt.sampler_type}')
         if opt.mode == 'train':
             self.dataloader = torch.utils.data.DataLoader(
                 self.dataset,
