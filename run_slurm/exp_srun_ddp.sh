@@ -129,6 +129,5 @@ srun -p ${PARTITION} \
     --n_fft ${n_fft} \
     --tensorboard ${tensorboard} \
     --visual_pool maxpool \
-    --audio_pool maxpool \
     --lipnet_config_path configs/lrw_snv1x_tcn2x.json \
     |& tee logs.txt
