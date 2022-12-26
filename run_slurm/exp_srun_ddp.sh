@@ -35,21 +35,21 @@ save_latest_freq=${save_latest_freq:-50}
 validation_on=${validation_on:-"true"}
 validation_freq=${validation_freq:-100}
 
-weights_facenet=${weights_facenet:-"."}
-weights_unet=${weights_unet:-"."}
-weights_FRNet=${weights_FRNet:-"."}
-weights_lipnet=${weights_lipnet:-"."}
+weights_facenet=${weights_facenet:-"a"}
+weights_unet=${weights_unet:-"a"}
+weights_FRNet=${weights_FRNet:-"a"}
+weights_lipnet=${weights_lipnet:-"a"}
 
-use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
-use_sisnr_loss=${use_sisnr_loss:-"true"}
+#use_mixandseparate_loss=${use_mixandseparate_loss:-"false"}
+#use_sisnr_loss=${use_sisnr_loss:-"true"}
 
-mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
+#mixandseparate_loss_weight=${mixandseparate_loss_weight:-1}
 sisnr_loss_weight=${sisnr_loss_weight:-1}
 lamda=${lamda:-0.5}
 
 FRNet_layers=${FRNet_layers:-2}
 
-mask_loss_type=${mask_loss_type:-"L2"}
+#mask_loss_type=${mask_loss_type:-"L2"}
 
 epochs=${epochs:-19}
 lr_steps=${lr_steps:-12 15}
@@ -110,10 +110,6 @@ srun -p ${PARTITION} \
     --save_latest_freq ${save_latest_freq} \
     --validation_on ${validation_on} \
     --validation_freq ${validation_freq} \
-    --use_mixandseparate_loss ${use_mixandseparate_loss} \
-    --use_sisnr_loss ${use_sisnr_loss} \
-    --mask_loss_type ${mask_loss_type} \
-    --mixandseparate_loss_weight ${mixandseparate_loss_weight} \
     --sisnr_loss_weight ${sisnr_loss_weight} \
     --lamda ${lamda} \
     --FRNet_layers ${FRNet_layers} \

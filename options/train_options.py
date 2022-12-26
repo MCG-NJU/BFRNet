@@ -22,9 +22,9 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--visual_pool', type=str, default='maxpool', help='avg or max pool for visual stream feature')
 		self.parser.add_argument('--audio_pool', type=str, default='maxpool', help="avg or max pool for audio stream feature")
 		self.parser.add_argument('--weights_facenet', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
-		self.parser.add_argument('--weights_unet', type=str, default='.', help="weights for unet")
-		self.parser.add_argument('--weights_FRNet', type=str, default='.', help="weights for FRNet")
-		self.parser.add_argument('--weights_lipnet', type=str, default='.', help="weights for lipnet")
+		self.parser.add_argument('--weights_unet', type=str, default='a', help="weights for unet")
+		self.parser.add_argument('--weights_FRNet', type=str, default='a', help="weights for FRNet")
+		self.parser.add_argument('--weights_lipnet', type=str, default='a', help="weights for lipnet")
 		self.parser.add_argument('--unet_ngf', type=int, default=64, help="unet base channel dimension")
 		self.parser.add_argument('--unet_input_nc', type=int, default=2, help="input spectrogram number of channels")
 		self.parser.add_argument('--unet_output_nc', type=int, default=2, help="output spectrogram number of channels")
@@ -53,15 +53,15 @@ class TrainOptions(BaseOptions):
 		# self.parser.add_argument('--audio_augmentation', type=str, choices=["true", "false"], default="false", help='whether to augment input audio')
 		self.parser.add_argument('--audio_normalization', type=str, choices=["true", "false"], default="true", help="whether to normalize audio?")
 
-		# whether to use loss
-		self.parser.add_argument('--use_mixandseparate_loss', default="true", type=str, choices=["true", "false"], help='whether to use mix-and-separate loss')
-		self.parser.add_argument('--use_sisnr_loss', default="true", type=str, choices=["true", "false"], help='whether to use sisnr loss')
+		# # whether to use loss
+		# self.parser.add_argument('--use_mixandseparate_loss', default="true", type=str, choices=["true", "false"], help='whether to use mix-and-separate loss')
+		# self.parser.add_argument('--use_sisnr_loss', default="true", type=str, choices=["true", "false"], help='whether to use sisnr loss')
 		# loss type
-		self.parser.add_argument('--mask_loss_type', default='L2', type=str, choices=('L1', 'L2', 'BCE'), help='type of loss on mask')
+		# self.parser.add_argument('--mask_loss_type', default='L2', type=str, choices=('L1', 'L2', 'BCE'), help='type of loss on mask')
 		self.parser.add_argument('--weighted_mask_loss', action='store_true', help="weighted loss")
 
 		# loss weight
-		self.parser.add_argument('--mixandseparate_loss_weight', default=1, type=float, help='weight for reconstruction loss')
+		# self.parser.add_argument('--mixandseparate_loss_weight', default=1, type=float, help='weight for reconstruction loss')
 		self.parser.add_argument('--sisnr_loss_weight', default=1, type=float, help='weight for sisnr loss')
 		self.parser.add_argument('--lamda', default=0.5, type=float, help='the factor to control the ratio of the losses.')
 
