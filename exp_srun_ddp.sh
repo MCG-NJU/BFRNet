@@ -69,7 +69,6 @@ n_fft=${n_fft:-512}
 tensorboard=${tensorboard:-"true"}
 
 
-cd ../
 
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
 srun -p ${PARTITION} \
