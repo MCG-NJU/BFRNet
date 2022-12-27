@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-export MASTER_PORT=$((12000 + $RANDOM % 20000))
+export MASTER_PORT=$((12000 + $RANDOM % 30000))
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
 set -x
 
 PARTITION=$1
@@ -18,14 +20,13 @@ audio_root=${audio_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
 mouth_root=${mouth_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
 mouthroi_format=${mouthroi_format:-"h5"}
 mp4_root=${mp4_root:-"s3://chy/voxceleb2/mp4"}
-save_output=${save_output:-"true"}
 output_dir_root=${output_dir_root:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/output"}
-weights_lipreadingnet=${weights_lipreadingnet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/lipreading_best.pth"}
-weights_facial=${weights_facial:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/facial_best.pth"}
+weights_lipnet=${weights_lipnet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/lipreading_best.pth"}
+weights_facenet=${weights_facenet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/facial_best.pth"}
 weights_unet=${weights_unet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/unet_best.pth"}
-weights_refine=${weights_refine:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
+weights_FRNet=${weights_FRNet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
 
-refine_num_layers=${refine_num_layers:-2}
+FRNet_layers=${FRNet_layers:-2}
 
 PY_ARGS=${@:3}  # Any arguments from the forth one are captured by this
 
@@ -51,29 +52,22 @@ srun -p ${PARTITION} \
     --mouth_root ${mouth_root} \
     --mouthroi_format ${mouthroi_format} \
     --mp4_root ${mp4_root} \
-    --save_output ${save_output} \
     --output_dir_root ${output_dir_root} \
     --num_frames 64 \
     --audio_length 2.55 \
     --hop_size 160 \
     --window_size 400 \
     --n_fft 512 \
-    --weights_lipreadingnet ${weights_lipreadingnet} \
-    --weights_facial ${weights_facial} \
+    --weights_lipnet ${weights_lipnet} \
+    --weights_facenet ${weights_facenet} \
     --weights_unet ${weights_unet} \
-    --weights_refine ${weights_refine} \
-    --lipreading_config_path configs/lrw_snv1x_tcn2x.json \
+    --weights_FRNet ${weights_FRNet} \
+    --lipnet_config_path configs/lrw_snv1x_tcn2x.json \
     --unet_output_nc 2 \
-    --normalization "true" \
-    --mask_to_use pred \
     --visual_feature_type both \
-    --identity_feature_dim 128 \
+    --face_feature_dim 128 \
     --visual_pool maxpool \
-    --audio_pool maxpool \
     --compression_type none \
     --mask_clip_threshold 5 \
-    --lipreading_extract_feature "true" \
-    --number_of_identity_frames 1 \
-    --audio_normalization "true" \
-    --refine_num_layers ${refine_num_layers} \
-    --reliable_face "true"
+    --number_of_face_frames 1 \
+    --FRNet_layers ${FRNet_layers}

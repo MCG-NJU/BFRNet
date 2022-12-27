@@ -7,7 +7,7 @@ import numpy as np
 import torchvision.transforms as transforms
 import torch
 import torch.utils.data as data
-from options.testMany_options import TestOptions
+from options.test_options import TestOptions
 from models.models import ModelBuilder
 from models.audioVisual_model import AudioVisualModel
 from data.audioVisual_dataset import get_preprocessing_pipelines, load_frame
@@ -75,11 +75,6 @@ def supp_mouth(mouth, minimum_length):
         return mouth[:, :minimum_length]
     else:
         return np.tile(mouth, (1, (minimum_length + len(mouth[0]) - 1) // len(mouth[0]), 1, 1))[:, :minimum_length]
-
-
-# def generate_spectrogram(audio):
-#     spec = torch.stft(audio, n_fft=512, hop_length=160, win_length=400, window=torch.hann_window(400).cuda()).cuda()
-#     return spec
 
 
 class dataset(data.Dataset):

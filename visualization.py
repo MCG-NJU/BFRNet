@@ -1,8 +1,6 @@
 import io
 import os
-import cv2
 import h5py
-import random
 import numpy as np
 import os.path as osp
 import soundfile as sf
@@ -20,7 +18,7 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 from facenet_pytorch import MTCNN
 
-from options.testMany_options import TestOptions
+from options.visual_options import VisualOptions
 from models.models import ModelBuilder
 from utils.utils import collate_fn
 from models.audioVisual_model import AudioVisualModel
@@ -77,9 +75,9 @@ def supp_mouth(mouth, minimum_length):
         return np.tile(mouth, (1, (minimum_length + len(mouth[0]) - 1) // len(mouth[0]), 1, 1))[:, :minimum_length]
 
 
-def generate_spectrogram(audio):
+def generate_spectrogram(audio, n_fft=512, hop_length=160, win_length=400):
     # audio: N, L
-    spec = torch.stft(audio, n_fft=512, hop_length=160, win_length=400, window=torch.hann_window(400), center=True)
+    spec = torch.stft(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=torch.hann_window(win_length), center=True)
     return spec.permute(0, 3, 1, 2)  # N, 2, F, T
 
 
@@ -104,10 +102,6 @@ class dataset(data.Dataset):
     def __len__(self):
         return len(self.mix_lst)
 
-    def _audio_augment(self, audio):
-        audio = audio * (random.random() * 1.5 + 0.5)  # 0.5 - 2.0
-        return audio
-
     def process_wav(self, tokens):
         num_speakers = len(tokens)
         # audio
@@ -125,29 +119,26 @@ class dataset(data.Dataset):
             audio_length.append(len(audio))
         target_length = min(audio_length)
 
-        for i in range(num_speakers):  # 截断audio并进行normalize
+        for i in range(num_speakers):
             audios[i] = audios[i][:target_length]
         audios = np.array(audios)
-        # 将target_length补到大于等于target_length且是40800的倍数的最小值
         margin = int(2.55 * 16000)
         target = ((target_length + margin - 1) // margin) * margin
         seg = target // margin
 
-        # 补充
         audios = supp_audio(audios, target)  # num_speakers, target
-        # 变成seg段2.55秒的长度
         audios = audios.reshape(num_speakers, seg, margin).transpose((1, 0, 2))  # seg, num_speakers, margin
         audios = audio_normalize(audios) / num_speakers
         audios = torch.FloatTensor(audios)  # seg, num_speakers, margin
 
         # audio_spec
-        audio_specs = self.generate_spectrogram_complex(audios.reshape(seg * num_speakers, margin), 512, 160, 400)  #seg*speaker, 2, 257, 256
+        audio_specs = self.generate_spectrogram(audios.reshape(seg * num_speakers, margin), 512, 160, 400)  # seg * speaker, 2, 257, 256
         audio_specs = audio_specs.reshape(seg, num_speakers, 2, 257, 256)  # seg, num_speakers, 2, 257, 256
 
         # mixture
         audio_mix = torch.FloatTensor(torch.sum(audios, dim=1))  # seg, margin
 
-        audio_mix_spec = self.generate_spectrogram_complex(audio_mix, 512, 160, 400)  # seg, 2, 257, 256
+        audio_mix_spec = self.generate_spectrogram(audio_mix, 512, 160, 400)  # seg, 2, 257, 256
         audio_mix_spec = audio_mix_spec.unsqueeze(1).repeat((1, num_speakers, 1, 1, 1))  # seg, speakers, 2, 257, 256
 
         audio_mix = audio_mix.unsqueeze(1).repeat(1, num_speakers, 1)  # seg, num_speakers, margin
@@ -199,7 +190,6 @@ class dataset(data.Dataset):
     def process_frame(self, tokens, seg):
         num_speakers = len(tokens)
         frames = []
-        # scores = []
         for n in range(num_speakers):
             best_score = 0
             video_path = osp.join(self.visual_direc, tokens[n]) + ".mp4"
@@ -216,7 +206,6 @@ class dataset(data.Dataset):
                         best_score = scores[0]
                 except:
                     pass
-            # scores.append(best_score)
             try:
                 best_frame = torch.tensor(np.array(best_frame))  # H, W, C
                 best_frame = best_frame.permute(2, 0, 1).unsqueeze(0)  # 1, C, H, W
@@ -239,19 +228,12 @@ class dataset(data.Dataset):
         frames = torch.stack(frames, dim=0).unsqueeze(0).repeat(seg, 1, 1, 1, 1)  # seg, num_speakers, 3, 224, 224
         return frames
 
-    def generate_spectrogram_complex(self, audio, n_fft, hop_length, win_length):
-        # audio: N, L
-        spec = torch.stft(audio, n_fft=n_fft, hop_length=hop_length, win_length=win_length, window=self.window, center=True)
-        # spec.shape: N, F, T, 2
-        return spec.permute(0, 3, 1, 2)  # N, 2, 257, 256
-
     def __getitem__(self, index):
         tokens = self.mix_lst[index].split(' ')
 
         assert self.opt.mix_number == len(tokens)
 
         audios, audio_mix, audio_mix_spec, target_length = self.process_wav(tokens)  # seg, num_speakers, margin
-        # audio_specs = self.generate_spectrogram_complex(audios.reshape())
         seg = len(audios)
 
         mouthrois = self.process_mouth(tokens, seg)  # seg, num_speakers, 1, 64, 88, 88
@@ -269,39 +251,6 @@ class dataset(data.Dataset):
         data['indexes'] = torch.IntTensor([index])
 
         return data
-
-
-def visualize(i, sdr, num_speaker, audio_mix, audios, sep_audios, mouthrois, frames):
-    mouthrois = mouthrois.detach().cpu().numpy()  # (n, 1, num, 88, 88)
-    mouthrois = ((mouthrois * 0.165 + 0.421) * 255).astype(np.uint8)
-
-    frames = np.transpose(frames.detach().cpu().numpy(), (0, 2, 3, 1))  # (n, 224, 224, 3)
-    frames[:, :, :, 0] = frames[:, :, :, 0] * 0.229 + 0.485
-    frames[:, :, :, 1] = frames[:, :, :, 1] * 0.224 + 0.456
-    frames[:, :, :, 2] = frames[:, :, :, 2] * 0.225 + 0.406
-    frames = (frames * 255).astype(np.uint8)
-
-    # 保存audio_mix, audios, mouthrois, frames, sep_audios
-    os.makedirs(f"sep/num{i}_{round(float(sdr), 2)}", exist_ok=True)
-    dirname = f"sep/num{i}_{round(float(sdr), 2)}"
-    for n in range(num_speaker):
-        sf.write(f"{dirname}/audio_mix{n}.wav", audio_mix[n], 16000)
-        sf.write(f"{dirname}/audios{n}.wav", audios[n], 16000)
-        sf.write(f"{dirname}/sep_audios{n}.wav", sep_audios[n], 16000)
-
-        dim = (88, 88)
-        fourcc = cv2.VideoWriter_fourcc(*'FMP4')
-        speaker_video = cv2.VideoWriter(f"{dirname}/mouthrois{n}.mp4", fourcc, 25.0, dim, isColor=False)
-        for mouth in mouthrois[n][0]:
-            speaker_video.write(mouth)
-        speaker_video.release()
-
-        cv2.imwrite(f"{dirname}/frames{n}.jpg", frames[n])
-
-
-def save_statistics(file, sdr, num_speaker, audio_mix, audios, sep_audios, mouthrois, frames, scores):
-    for n in range(num_speaker):
-        file.write(f"{round(sdr[n], 2)}\t{len(audio_mix[n])}\t{np.mean(audio_mix[n])}\t{np.mean(audios[n])}\t{np.mean(sep_audios[n])}\t{torch.mean(mouthrois[n])}\t{torch.mean(frames[n])}\t{scores[n].item()}\n")
 
 
 def draw_spec(spec, name, vmin, vmax):
@@ -375,7 +324,6 @@ def normalize2(audio, desired_rms=0.1, eps=1e-4):
 
 def process_mixture(opt, model, data_loader):
     model.eval()
-    sisnri_list = []
     pb = ProgressBar(len(data_loader), start=False)
     pb.start()
     window = torch.hann_window(400).cuda()
@@ -414,7 +362,7 @@ def process_mixture(opt, model, data_loader):
             indexes = data['indexes']  # batch size
 
             cumsum = 0
-            for idx, seg in enumerate(seg_list):  # 每一个人
+            for idx, seg in enumerate(seg_list):
                 tmp_audio = data['audios'][cumsum: cumsum + seg]  # seg, num_speakers, L
                 tmp_audio = tmp_audio.permute(1, 0, 2).reshape(num_speakers, -1)[:, :data['target_length'][idx]]  # num_speakers, target_length
                 tmp_audio = normalize2(tmp_audio)
@@ -433,11 +381,6 @@ def process_mixture(opt, model, data_loader):
 
                 cumsum += seg
 
-                sisnr_pre = get_sisnr(tmp_pred_audio_pre, tmp_audio)  # num_speakers
-                sisnr_aft = get_sisnr(tmp_pred_audio_aft, tmp_audio)  # num_speakers
-                sisnri = sisnr_aft - sisnr_pre  # num_speakers
-                sisnri = sisnri.numpy().tolist()
-
                 specs_gt = generate_spectrogram(tmp_audio).numpy()  # num_speakers, 2, F, T
                 specs_pre = generate_spectrogram(tmp_pred_audio_pre).numpy()  # num_speakers, 2, F, T
                 specs_aft = generate_spectrogram(tmp_pred_audio_aft).numpy()  # num_speakers, 2, F, T
@@ -445,10 +388,6 @@ def process_mixture(opt, model, data_loader):
 
                 index = indexes[idx]
                 tokens = mix_lst[index].split(" ")  # num_speakers
-
-                # sisnri_list.append((tokens[]))
-                for n in range(num_speakers):
-                    sisnri_list.append((tokens[n], sisnri[n]))
 
                 tmp_audio = tmp_audio.numpy()
                 tmp_pred_audio_pre = tmp_pred_audio_pre.numpy()
@@ -458,18 +397,10 @@ def process_mixture(opt, model, data_loader):
 
             pb.update()
 
-    sisnri_list = sorted(sisnri_list, key=lambda x: x[1], reverse=True)
-    avg_sisnri = sum([sisnri[1] for sisnri in sisnri_list]) / len(sisnri_list)
-    print('SISNRi: %.2f' % avg_sisnri)
-
-    sisnri_list = [" ".join((sisnri[0], str(round(sisnri[1], 2)))) for sisnri in sisnri_list]
-    with open(osp.join(osp.dirname(opt.save_dir), f"{opt.name}_sisnri.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(sisnri_list))
-
 
 def main():
-    #load test arguments
-    opt = TestOptions().parse()
+    # load test arguments
+    opt = VisualOptions().parse()
     opt.device = torch.device("cuda")
     opt.mode = 'test'
     opt.rank = 0
@@ -477,36 +408,34 @@ def main():
 
     # Network Builders
     builder = ModelBuilder()
-    net_lipreading = builder.build_lipreadingnet(
+    lip_net = builder.build_lipnet(
         opt=opt,
-        config_path=opt.lipreading_config_path,
-        weights=opt.weights_lipreadingnet,
-        extract_feats=opt.lipreading_extract_feature)
-    #if identity feature dim is not 512, for resnet reduce dimension to this feature dim
-    if opt.identity_feature_dim != 512:
+        config_path=opt.lipnet_config_path,
+        weights=opt.weights_lipnet)
+    # if face feature dim is not 512, for resnet reduce dimension to this feature dim
+    if opt.face_feature_dim != 512:
         opt.with_fc = True
     else:
         opt.with_fc = False
-    net_facial_attributes = builder.build_facial(
+    face_net = builder.build_facenet(
             opt=opt,
             pool_type=opt.visual_pool,
-            fc_out=opt.identity_feature_dim,
+            fc_out=opt.face_feature_dim,
             with_fc=opt.with_fc,
-            weights=opt.weights_facial)
-    net_unet = builder.build_unet(
+            weights=opt.weights_facenet)
+    unet = builder.build_unet(
             opt=opt,
             ngf=opt.unet_ngf,
             input_nc=opt.unet_input_nc,
             output_nc=opt.unet_output_nc,
-            identity_feature_dim=opt.identity_feature_dim,
             weights=opt.weights_unet)
-    net_refine = builder.build_refine_net(
-        opt=opt,
-        num_layers=opt.refine_num_layers,
-        weights=opt.weights_refine
+    FRNet = builder.build_FRNet(
+            opt=opt,
+            num_layers=opt.FRNet_layers,
+            weights=opt.weights_FRNet
     )
 
-    nets = (net_lipreading, net_facial_attributes, net_unet, net_refine)
+    nets = (lip_net, face_net, unet, FRNet)
 
     # construct our audio-visual model
     model = AudioVisualModel(nets, opt).cuda()

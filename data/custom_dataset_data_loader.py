@@ -137,37 +137,14 @@ class CustomDatasetDataLoader(BaseDataLoader):
     def initialize(self, opt):
         BaseDataLoader.initialize(self, opt)
         self.dataset = CreateDataset(opt)
-        # if opt.sampler_type == "normal":
         sampler = CustomDistributedSampler(self.dataset, shuffle=True)
-        # elif opt.sampler_type == "curriculum":
-        #     sampler = CurriculumDistributedSampler(self.dataset, opt.curriculum_sample, shuffle=True)
-        # elif opt.sampler_type == "curriculum2":
-        #     sampler = CurriculumDistributedSampler2(self.dataset, opt.curriculum_sample, shuffle=True)
-        # else:
-        #     assert ValueError(f'wrong opt.sampler_type: {opt.sampler_type}')
-        if opt.mode == 'train':
-            self.dataloader = torch.utils.data.DataLoader(
-                self.dataset,
-                batch_size=opt.batchSize,
-                num_workers=int(opt.nThreads),
-                collate_fn=collate_fn,
-                sampler=sampler,
-                worker_init_fn=worker_init_fn)
-        # elif opt.mode == 'val':
-        # if opt.sampler_type == "normal":
-        #     sampler = CustomDistributedSampler(self.dataset, shuffle=True)
-        # elif opt.sampler_type == "curriculum":
-        #     sampler = CurriculumDistributedSampler(self.dataset, [0, 0, 0], shuffle=True)
-        # else:
-        #     assert ValueError(f'wrong opt.sampler_type: {opt.sampler_type}')
-        elif opt.mode == 'val':
-            self.dataloader = torch.utils.data.DataLoader(
-                self.dataset,
-                batch_size=opt.batchSize,
-                num_workers=int(opt.nThreads),
-                collate_fn=collate_fn,
-                sampler=sampler,
-                worker_init_fn=worker_init_fn)
+        self.dataloader = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=opt.batchSize,
+            num_workers=int(opt.nThreads),
+            collate_fn=collate_fn,
+            sampler=sampler,
+            worker_init_fn=worker_init_fn)
 
     def set_epoch(self, epoch):
         self.dataloader.sampler.set_epoch(epoch)
