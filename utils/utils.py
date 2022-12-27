@@ -36,14 +36,6 @@ def magnitude2heatmap(mag, log=True, scale=200.):
     mag_color = mag_color[:, :, ::-1]
     return mag_color
 
-# def mkdirs(path, remove=False):
-#     if os.path.isdir(path):
-#         if remove:
-#             shutil.rmtree(path)
-#         else:
-#             return
-#     os.makedirs(path)
-
 def visualizeSpectrogram(spectrogram, save_path):
     fig,ax = plt.subplots(1,1)
     plt.axis('off')
@@ -133,43 +125,11 @@ numpy_type_map = {
     'int8': torch.CharTensor,
     'uint8': torch.ByteTensor,
 }
-# def object_collate(batch):
-#     r"""Puts each data field into a tensor with outer dimension batch size"""
-#     #print batch
-#     elem_type = type(batch[0])
-#     if isinstance(batch[0], torch.Tensor):
-#         out = None
-#         return torch.stack(batch, 0, out=out)
-#     elif elem_type.__module__ == 'numpy':
-#         elem = batch[0]
-#         if elem_type.__name__ == 'ndarray':
-#             return torch.cat([torch.from_numpy(b) for b in batch], 0) #concatenate even if dimension differs
-#             #return object_collate([torch.from_numpy(b) for b in batch])
-#         if elem.shape == ():  # scalars
-#             py_type = float if elem.dtype.name.startswith('float') else int
-#             return numpy_type_map[elem.dtype.name](list(map(py_type, batch)))
-#     elif isinstance(batch[0], float):
-#         return torch.tensor(batch, dtype=torch.float64)
-#     elif isinstance(batch[0], int_classes):
-#         return torch.tensor(batch)
-#     elif isinstance(batch[0], string_classes):
-#         return batch
-#     elif isinstance(batch[0], container_abcs.Mapping):
-#         return {key: object_collate([d[key] for d in batch]) for key in batch[0]}
-#     elif isinstance(batch[0], container_abcs.Sequence):
-#         transposed = zip(*batch)
-#         return [object_collate(samples) for samples in transposed]
-#
-#     raise TypeError((error_msg_fmt.format(type(batch[0]))))
-
 
 def collate_fn(dataBatch):
     """
     Collate function definition used in Dataloaders.
     """
-    # inputBatch = pad_sequence([data[0] for data in dataBatch])
-    # torch.stack(batch, 0, out=out)
-
     keys = dataBatch[0].keys()
     outBatch = {}
     for key in keys:

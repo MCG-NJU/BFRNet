@@ -9,9 +9,6 @@ class TrainOptions(BaseOptions):
 		self.parser.add_argument('--train_file', type=str, required=True, help='train file')
 		self.parser.add_argument('--val_file', type=str, required=True, help='val file')
 
-		# self.parser.add_argument('--sampler_type', type=str, choices=["normal", "curriculum", "curriculum2"], help='data sample strategy')
-		# self.parser.add_argument('--curriculum_sample', nargs='+', type=int, default=[1, 2, 3], help='the epochs to add 3mix, 4mix, 5mix')
-
 		self.parser.add_argument('--display_freq', type=int, default=10, help='frequency of displaying average loss and accuracy')
 		self.parser.add_argument('--save_latest_freq', type=int, default=50, help='frequency of saving the latest results')
 		self.parser.add_argument('--tensorboard', type=str, choices=["true", "false"], default="true", help='use tensorboard to visualize loss change ')
@@ -20,7 +17,6 @@ class TrainOptions(BaseOptions):
 
 		# model arguments
 		self.parser.add_argument('--visual_pool', type=str, default='maxpool', help='avg or max pool for visual stream feature')
-		# self.parser.add_argument('--audio_pool', type=str, default='maxpool', help="avg or max pool for audio stream feature")
 		self.parser.add_argument('--weights_facenet', type=str, default='./pretrained_models/cross-modal-pretraining/facial.pth', help="weights for facial attributes net")
 		self.parser.add_argument('--weights_unet', type=str, default='a', help="weights for unet")
 		self.parser.add_argument('--weights_FRNet', type=str, default='a', help="weights for FRNet")

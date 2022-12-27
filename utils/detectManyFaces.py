@@ -47,7 +47,7 @@ def bb_intersection_over_union(boxA, boxB):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--video_root', type=str, required=True)  # 所有文件根目录
+    parser.add_argument('--video_root', type=str, required=True)
     parser.add_argument('--faces', type=str, required=True)
     parser.add_argument('--filename_input', type=str, required=True)
     parser.add_argument('--landmark', type=str, required=True)

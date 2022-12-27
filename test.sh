@@ -18,8 +18,6 @@ audio_root=${audio_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
 mouth_root=${mouth_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
 mouthroi_format=${mouthroi_format:-"h5"}
 mp4_root=${mp4_root:-"s3://chy/voxceleb2/mp4"}
-#output_dir_root=${output_dir_root:-"output"}
-#save_output=${save_output:-"false"}
 weights_lipnet=${weights_lipnet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/lipreading_best.pth"}
 # weights_lipnet=${weights_lipnet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/lipreading_best.pth"}
 weights_facenet=${weights_facenet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/facial_best.pth"}
@@ -44,7 +42,7 @@ srun -p ${PARTITION} \
     --kill-on-bad-exit=1 \
     --quotatype=auto \
     ${SRUN_ARGS} \
-    python -u testMany.py \
+    python -u test.py \
     --name ${JOB_NAME} \
     --ceph ${ceph} \
     --test_file ${test_file} \

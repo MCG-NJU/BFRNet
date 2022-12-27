@@ -1,6 +1,5 @@
 import torch.utils.data
 from data.base_data_loader import BaseDataLoader
-# from data.curriculum_sampler import *
 from utils.utils import collate_fn
 import math
 import torch

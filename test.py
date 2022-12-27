@@ -77,9 +77,9 @@ def supp_mouth(mouth, minimum_length):
         return np.tile(mouth, (1, (minimum_length + len(mouth[0]) - 1) // len(mouth[0]), 1, 1))[:, :minimum_length]
 
 
-def generate_spectrogram(audio):
-    spec = torch.stft(audio, n_fft=512, hop_length=160, win_length=400, window=torch.hann_window(400).cuda()).cuda()
-    return spec
+# def generate_spectrogram(audio):
+#     spec = torch.stft(audio, n_fft=512, hop_length=160, win_length=400, window=torch.hann_window(400).cuda()).cuda()
+#     return spec
 
 
 class dataset(data.Dataset):
@@ -375,7 +375,7 @@ def main():
         opt=opt,
         config_path=opt.lipnet_config_path,
         weights=opt.weights_lipnet)
-    #if face feature dim is not 512, for resnet reduce dimension to this feature dim
+    # if face feature dim is not 512, for resnet reduce dimension to this feature dim
     if opt.face_feature_dim != 512:
         opt.with_fc = True
     else:

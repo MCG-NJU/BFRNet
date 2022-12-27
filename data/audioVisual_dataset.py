@@ -72,17 +72,6 @@ def get_mouthroi_audio(mouthroi, audio, window, num_of_mouthroi_frames, audio_sa
     return mouthroi, audio_sample
 
 
-# def generate_spectrogram_magphase(audio, stft_frame, stft_hop, n_fft):
-#     spectro = librosa.core.stft(audio, hop_length=stft_hop, n_fft=n_fft, win_length=stft_frame, center=True)
-#     spectro_mag, spectro_phase = librosa.core.magphase(spectro)
-#     spectro_mag = np.expand_dims(spectro_mag, axis=0)
-#     if with_phase:
-#         spectro_phase = np.expand_dims(np.angle(spectro_phase), axis=0)
-#         return spectro_mag, spectro_phase
-#     else:
-#         return spectro_mag
-
-
 def generate_spectrogram_complex(audio, stft_frame, stft_hop, n_fft):
     spectro = librosa.core.stft(audio, hop_length=stft_hop, n_fft=n_fft, win_length=stft_frame, center=True)
     real = np.expand_dims(np.real(spectro), axis=0)

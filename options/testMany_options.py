@@ -1,7 +1,7 @@
 from .base_options import BaseOptions
 
 
-#test by mix and separate two videos
+# test by mix and separate two videos
 class TestOptions(BaseOptions):
 	def initialize(self):
 		BaseOptions.initialize(self)
@@ -9,15 +9,6 @@ class TestOptions(BaseOptions):
 
 		self.parser.add_argument('--test_file', type=str, required=True)
 		self.parser.add_argument('--mix_number', type=int, default=2, required=True)
-
-		# self.parser.add_argument('--save_output', type=str, choices=["true", "false"], required=True)
-		# self.parser.add_argument('--output_dir_root', type=str, required=True)
-
-		# self.parser.add_argument('--hop_second', default=2.55, type=float, help='the hop length to perform audio separation in a sliding window approach')
-		# self.parser.add_argument('--subtract_mean', default=True, type=bool, help='subtract channelwise mean from input image')
-		# self.parser.add_argument('--spectrogram_type', type=str, default='magonly', choices=('complex', 'magonly'), help='whether to use magonly or complex spectrogram')
-		# self.parser.add_argument('--mask_to_use', type=str, default='pred', choices=('gt', 'pred'), help='what phase to use')
-		# self.parser.add_argument('--visualize_spectrogram', action='store_true', help='whether to use discriminator')
 
 		#model specification
 		self.parser.add_argument('--visual_pool', type=str, default='maxpool', help='avg or max pool for visual stream feature')
@@ -40,7 +31,6 @@ class TestOptions(BaseOptions):
 		self.parser.add_argument('--sigmoidal_compression_b', type=int, default=0, help="sigmoidal compression b")
 		self.parser.add_argument('--mask_clip_threshold', type=int, default=5, help="mask_clip_threshold")
 		self.parser.add_argument('--l2_feature_normalization',default="false",choices=["false", "true"],help="whether l2 nomalizing identity/audio features")
-		# self.parser.add_argument('--reliable_face',default="false",choices=["false","true"],help="whether to use the face that has high detection score")
 
 		self.parser.add_argument('--FRNet_layers', type=int, default=1, help='number of refine model layers')
 
@@ -48,8 +38,6 @@ class TestOptions(BaseOptions):
 		self.parser.add_argument('--scale_w',nargs='+',help='Scale width of the video',default=[128],type=int)
 		self.parser.add_argument('--scale_h',nargs='+',help='Scale height oft the video',default=[128],type=int)
 		self.parser.add_argument("--crop_size",type=int,default=112,help="Final image scale",)
-		# self.parser.add_argument('--normalization',default="false",choices=["false","true"],help="Should we use input normalization?")
-		# self.parser.add_argument('--audio_normalization',default="false",choices=["false","true"],help="whether to normalize audio?")
 
 		#include test related hyper parameters here
 		self.mode = "test"
