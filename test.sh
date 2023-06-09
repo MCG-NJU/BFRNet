@@ -5,46 +5,32 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 set -x
 
-PARTITION=$1
-JOB_NAME=$2
-GPUS=${GPUS:-1}
+JOB_NAME=$1
+NNODES=${NNODES:-1}
 GPUS_PER_NODE=${GPUS_PER_NODE:-1}
-CPUS_PER_TASK=${CPUS_PER_TASK:-5}
-SRUN_ARGS=${SRUN_ARGS:-""}
-ceph=${ceph:-"true"}
-test_file=${test_file:-"s3://chy/voxceleb2/unseen_test/unseen_2mix.txt"}
+NODE_RANK=${NODE_RANK:-0}
+MASTER_ADDR=${MASTER_ADDR:-"127.0.0.1"}
+
+ceph=${ceph:-"false"}
+test_file=${test_file:-"anno/unseen_2mix.txt"}
 mix_number=${mix_number:-2}
 batchSize=${batchSize:-1}
 nThreads=${nThreads:-4}
-audio_root=${audio_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
-mouth_root=${mouth_root:-"s3://chy/voxceleb2/mouth_roi_hdf5/"}
+audio_root=${audio_root:-"../mouth"}
+mouth_root=${mouth_root:-"../mouth"}
 mouthroi_format=${mouthroi_format:-"h5"}
-mp4_root=${mp4_root:-"s3://chy/voxceleb2/mp4"}
-weights_lipnet=${weights_lipnet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/lipreading_best.pth"}
-# weights_lipnet=${weights_lipnet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/lipreading_best.pth"}
-weights_facenet=${weights_facenet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/facial_best.pth"}
-# weights_facenet=${weights_facenet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/facial_best.pth"}
-weights_unet=${weights_unet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/unet_best.pth"}
-# weights_unet=${weights_unet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/unet_best.pth"}
-weights_FRNet=${weights_FRNet:-"/mnt/petrelfs/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_prtr_facial_sisnr_refine5_two_layers_r0.5_2gpus_batch8/refine_best.pth"}
-# weights_FRNet=${weights_FRNet:-"/mnt/lustre/chenghaoyue/projects/VisualVoice/checkpoints/vox_multi_sisnr_FRNet/refine_best.pth"}
+mp4_root=${mp4_root:-"../mp4"}
+weights_lipnet=${weights_lipnet:-"checkpoints/lipreading_best.pth"}
+weights_facenet=${weights_facenet:-"checkpoints/facial_best.pth"}
+weights_unet=${weights_unet:-"checkpoints/unet_best.pth"}
+weights_FRNet=${weights_FRNet:-"checkpoints/refine_best.pth"}
 
 FRNet_layers=${FRNet_layers:-2}
 
-PY_ARGS=${@:3}  # Any arguments from the forth one are captured by this
 
 
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
-srun -p ${PARTITION} \
-    --job-name=${JOB_NAME} \
-    --gres=gpu:${GPUS_PER_NODE} \
-    --ntasks=1 \
-    --ntasks-per-node=1 \
-    --cpus-per-task=${CPUS_PER_TASK} \
-    --kill-on-bad-exit=1 \
-    --quotatype=auto \
-    ${SRUN_ARGS} \
-    python -u test.py \
+python test.py \
     --name ${JOB_NAME} \
     --ceph ${ceph} \
     --test_file ${test_file} \

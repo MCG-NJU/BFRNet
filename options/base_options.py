@@ -10,6 +10,7 @@ class BaseOptions:
 	def initialize(self):
 		self.parser.add_argument('--port', type=int, default=29660)
 
+		self.parser.add_argument('--ceph', type=str, choices=["true", "false"], help='whether to load data by ceph')
 		self.parser.add_argument('--mp4_root', type=str, required=True, help='path to dataset')
 		self.parser.add_argument('--audio_root', type=str, required=True, help='path to dataset')
 		self.parser.add_argument('--mouth_root', type=str, required=True, help='path to dataset')

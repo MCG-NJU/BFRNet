@@ -6,7 +6,7 @@ import face_alignment
 from facenet_pytorch import MTCNN
 import torch
 import mmcv
-from mmcv import ProgressBar
+from mmengine import ProgressBar
 from PIL import Image
 from collections import deque
 from petrel_client.client import Client
@@ -150,14 +150,14 @@ def crop_patch(args, mean_face_landmarks, video, landmarks):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--video_root', type=str, required=True)  # 所有文件根目录
-    parser.add_argument('--save_root', type=str, required=True)  # 所有文件根目录
-    parser.add_argument('--anno_file', type=str, required=True)  # anno file: 5957531/00008 5957531/00008
+    parser.add_argument('--video_root', type=str, required=True, help="The root directory of videos")
+    parser.add_argument('--save_root', type=str, required=True, help="The root directory of output videos")
+    parser.add_argument('--anno_file', type=str, required=True)  # anno file: direc_no1/video_no1 direc_no2/video_no2
 
-    parser.add_argument('--detect_every_N_frame', type=int, default=8)
+    parser.add_argument('--detect_every_N_frame', type=int, default=8, help="detect faces for every N frames")
     parser.add_argument('--scalar_face_detection', type=float, default=1.5)
 
-    parser.add_argument('--mean_face', required=True, help='mean face pathname')
+    parser.add_argument('--mean_face', default="./utils/20words_mean_face.npy", help='mean face pathname')
     parser.add_argument('--convert_gray', default=False, action='store_true', help='convert2grayscale')
 
     parser.add_argument('--crop_width', default=96, type=int, help='the width of mouth ROIs')
@@ -166,7 +166,7 @@ def main():
     parser.add_argument('--stop_idx', default=68, type=int, help='the end of landmark index')
     parser.add_argument('--window_margin', default=12, type=int, help='window margin for smoothed_landmarks')
 
-    parser.add_argument('--fail_file', type=str, required=True)
+    parser.add_argument('--fail_file', type=str, required=True, help="The file which records the failed videos")
     args = parser.parse_args()
     mean_face_landmarks = np.load(args.mean_face)
 

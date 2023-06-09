@@ -14,9 +14,8 @@ def load_args(default_config=None):
     # -- utils
     parser.add_argument('--video_root', default=None, help='raw video directory')
 
-    parser.add_argument('--tracked_video', default=None, help='raw video directory')
     parser.add_argument('--landmark', default=None, help='landmark directory')
-    parser.add_argument('--filename_input', default='./lrw500_detected_face.csv', help='list of detected video and its subject ID')
+    parser.add_argument('--csv_root', required=True, help='The root directory of output csv file for each video')
     parser.add_argument('--mouthroi', default=None, help='the directory of saving mouth ROIs')
     # -- mean face utils
     parser.add_argument('--mean_face', default='./utils/20words_mean_face.npy', help='mean face pathname')
@@ -141,12 +140,11 @@ videos = os.listdir(args.video_root)
 pb = ProgressBar(len(videos))
 pb.start()
 for video_input in videos:
-    if not osp.exists(osp.join(args.tracked_video, video_input)) or \
-        not osp.exists(osp.join(args.filename_input, osp.splitext(video_input)[0] + '.csv')) or \
+    if not osp.exists(osp.join(args.csv_root, osp.splitext(video_input)[0] + '.csv')) or \
         not osp.exists(osp.join(args.landmark, osp.splitext(video_input)[0] + '.npz')):
         continue
 
-    lines = open(osp.join(args.filename_input, osp.splitext(video_input)[0] + '.csv')).read().splitlines()
+    lines = open(osp.join(args.csv_root, osp.splitext(video_input)[0] + '.csv')).read().splitlines()
     lines = list(filter(lambda x: 'test' in x, lines)) if args.testset_only else lines
 
     for filename_idx, line in enumerate(lines):

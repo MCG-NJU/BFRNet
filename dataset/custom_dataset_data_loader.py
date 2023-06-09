@@ -1,5 +1,5 @@
 import torch.utils.data
-from data.base_data_loader import BaseDataLoader
+from dataset.base_data_loader import BaseDataLoader
 from utils.utils import collate_fn
 import math
 import torch
@@ -21,35 +21,7 @@ def worker_init_fn(worker_id):
 
 class CustomDistributedSampler(Sampler):
     """Sampler that restricts data loading to a subset of the dataset.
-
-    It is especially useful in conjunction with
-    :class:`torch.nn.parallel.DistributedDataParallel`. In such a case, each
-    process can pass a :class`~torch.utils.data.DistributedSampler` instance as a
-    :class:`~torch.utils.data.DataLoader` sampler, and load a subset of the
-    original dataset that is exclusive to it.
-
-    .. note::
-        Dataset is assumed to be of constant size.
-
-    Arguments:
-        dataset: Dataset used for sampling.
-        num_replicas (int, optional): Number of processes participating in
-            distributed training. By default, :attr:`rank` is retrieved from the
-            current distributed group.
-        rank (int, optional): Rank of the current process within :attr:`num_replicas`.
-            By default, :attr:`rank` is retrieved from the current distributed
-            group.
-        shuffle (bool, optional): If ``True`` (default), sampler will shuffle the
-            indices.
-        seed (int, optional): random seed used to shuffle the sampler if
-            :attr:`shuffle=True`. This number should be identical across all
-            processes in the distributed group. Default: ``0``.
-
-    .. warning::
-        In distributed mode, calling the :meth`set_epoch(epoch) <set_epoch>` method at
-        the beginning of each epoch **before** creating the :class:`DataLoader` iterator
-        is necessary to make shuffling work properly across multiple epochs. Otherwise,
-        the same ordering will be always used.
+    For each batch, sample mixtures containing 2,3,4,5 speakers.
     """
 
     def __init__(self, dataset, num_replicas=None, rank=None, shuffle=True, seed=0):
@@ -90,11 +62,11 @@ class CustomDistributedSampler(Sampler):
 
         indices_ = []
         for i in range(self.num_batches):
-            indices_.append([(indices[16 * i], indices[16 * i + 1]),
-                             (indices[16 * i + 2], indices[16 * i + 3]),
-                             (indices[16 * i + 4], indices[16 * i + 5], indices[16 * i + 6]),
-                             (indices[16 * i + 7], indices[16 * i + 8], indices[16 * i + 9], indices[16 * i + 10]),
-                             (indices[16 * i + 11], indices[16 * i + 12], indices[16 * i + 13], indices[16 * i + 14], indices[16 * i + 15])])
+            indices_.append([(indices[16 * i], indices[16 * i + 1]),  # 2 speakers
+                             (indices[16 * i + 2], indices[16 * i + 3]),  # 2 speakers
+                             (indices[16 * i + 4], indices[16 * i + 5], indices[16 * i + 6]),  # 3 speakers
+                             (indices[16 * i + 7], indices[16 * i + 8], indices[16 * i + 9], indices[16 * i + 10]),  # 4 speakers
+                             (indices[16 * i + 11], indices[16 * i + 12], indices[16 * i + 13], indices[16 * i + 14], indices[16 * i + 15])])  # 5 speakers
 
         return indices_
 
@@ -102,13 +74,8 @@ class CustomDistributedSampler(Sampler):
         return self.num_batches
 
     def set_epoch(self, epoch):
-        r"""
-        Sets the epoch for this sampler. When :attr:`shuffle=True`, this ensures all replicas
-        use a different random ordering for each epoch. Otherwise, the next iteration of this
-        sampler will yield the same ordering.
-
-        Arguments:
-            epoch (int): Epoch number.
+        """
+        Sets the epoch for this sampler and generate mixture list at the beginning of epoch.
         """
         self.epoch = epoch
         self.indices = self.get_indices()
@@ -119,7 +86,7 @@ class CustomDistributedSampler(Sampler):
 
 def CreateDataset(opt):
     if opt.model == 'audioVisual':
-        from data.audioVisual_dataset import AudioVisualDataset
+        from dataset.audioVisual_dataset import AudioVisualDataset
         dataset = AudioVisualDataset()
     else:
         raise ValueError("Dataset [%s] not recognized." % opt.model)

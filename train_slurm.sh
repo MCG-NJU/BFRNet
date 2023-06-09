@@ -7,22 +7,22 @@ set -x
 
 PARTITION=$1
 JOB_NAME=$2
-PY_ARGS=${@:3}  # Any arguments from the forth one are captured by this
 
 GPUS=${GPUS:-2}
-GPUS_PER_NODE=${GPUS_PER_NODE:-2}
+GPUS_PER_NODE=${GPUS_PER_NODE:-8}
 CPUS_PER_TASK=${CPUS_PER_TASK:-5}
 SRUN_ARGS=${SRUN_ARGS:-""}
 port=${MASTER_PORT:-"29789"}
 resume=${resume:-"true"}
 
-mouthroi_format=${mouthroi_format:-"h5"}
-mp4_root=${mp4_root:-"s3://chy/voxceleb2/mp4"}
-audio_root=${audio_root:-"s3://chy/voxceleb2/mouth_roi_hdf5"}
-mouth_root=${mouth_root:-"s3://chy/voxceleb2/mouth_roi_hdf5"}
-train_file=${train_file:-"s3://chy/voxceleb2/formal/train_clips.txt"}
-val_file=${val_file:-"s3://chy/voxceleb2/formal/val_clips.txt"}
-checkpoints_dir=${checkpoints_dir:-"/mnt/lustre/chenghaoyue/projects/BFRNet/checkpoints"}
+ceph=${ceph:-"false"}  # whether the data is stored by ceph
+mouthroi_format=${mouthroi_format:-"h5"}  # the format of mouth roi files
+mp4_root=${mp4_root:-"voxceleb2/mp4"}
+audio_root=${audio_root:-"voxceleb2/mouth"}
+mouth_root=${mouth_root:-"voxceleb2/mouth"}
+train_file=${train_file:-"./anno/train_clips.txt"}
+val_file=${val_file:-"./anno/val_clips.txt"}
+checkpoints_dir=${checkpoints_dir:-"./checkpoints"}
 batchSize=${batchSize:-8}
 nThreads=${nThreads:-4}
 seed=${seed:-0}
@@ -32,10 +32,10 @@ save_latest_freq=${save_latest_freq:-50}
 validation_on=${validation_on:-"true"}
 validation_freq=${validation_freq:-100}
 
-weights_facenet=${weights_facenet:-"a"}
-weights_unet=${weights_unet:-"a"}
-weights_FRNet=${weights_FRNet:-"a"}
-weights_lipnet=${weights_lipnet:-"a"}
+weights_facenet=${weights_facenet:-"./checkpoints/facial_latest.pth"}
+weights_unet=${weights_unet:-"./checkpoints/unet_latest.pth"}
+weights_FRNet=${weights_FRNet:-"./checkpoints/frnet_latest.pth"}
+weights_lipnet=${weights_lipnet:-"./checkpoints/lipreading_latest.pth"}
 
 sisnr_loss_weight=${sisnr_loss_weight:-1}
 lamda=${lamda:-0.5}
@@ -69,7 +69,6 @@ n_fft=${n_fft:-512}
 tensorboard=${tensorboard:-"true"}
 
 
-
 PYTHONPATH="$(dirname $0)/..":$PYTHONPATH \
 srun -p ${PARTITION} \
     --job-name=${JOB_NAME} \
@@ -84,6 +83,7 @@ srun -p ${PARTITION} \
     --port ${port} \
     --name ${JOB_NAME} \
     --resume ${resume} \
+    --ceph ${ceph} \
     --mp4_root ${mp4_root} \
     --audio_root ${audio_root} \
     --mouth_root ${mouth_root} \

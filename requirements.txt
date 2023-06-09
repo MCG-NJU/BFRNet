@@ -1,0 +1,14 @@
+librosa
+torchvision
+mir_eval
+pypesq
+pystoi
+h5py
+pytorch
+torchvision
+torchaudio
+mmengine
+mmcv
+av
+facenet_pytorch
+opencv-python

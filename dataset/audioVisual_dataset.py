@@ -1,18 +1,19 @@
+import io
 import os.path
 import librosa
 from scipy.io import wavfile
-from data.base_dataset import BaseDataset
 import h5py
 import random
 from random import randrange
 from PIL import Image, ImageEnhance
 import numpy as np
-import torchvision.transforms as transforms
+
 import torch
+import torchvision.transforms as transforms
+
 from utils.lipreading_preprocess import *
 from utils.video_reader import VideoReader
-from petrel_client.client import Client
-import io
+from dataset.base_dataset import BaseDataset
 
 
 def normalize(samples, desired_rms = 0.1, eps = 1e-4):
@@ -104,10 +105,14 @@ class AudioVisualDataset(BaseDataset):
         else:
             anno_file = opt.val_file
 
-        self.client = Client(backend='petrel')
-
-        with io.BytesIO(self.client.get(anno_file)) as af:
-            self.videos_path = [d.decode('utf-8').strip() for d in af.readlines()]
+        if opt.ceph == "true":
+            from petrel_client.client import Client
+            self.client = Client(backend='petrel')
+            with io.BytesIO(self.client.get(anno_file)) as af:
+                self.videos_path = [d.decode('utf-8').strip() for d in af.readlines()]
+        else:
+            with open(anno_file, "r", encoding="utf-8") as f:
+                self.videos_path = [d.strip() for d in f.readlines()]
         self.length = len(self.videos_path)
 
         vision_normalize = transforms.Normalize(
@@ -127,19 +132,31 @@ class AudioVisualDataset(BaseDataset):
 
         # load audio
         try:
-            with io.BytesIO(self.client.get(audio_path)) as ap:
-                _, audio = wavfile.read(ap)
+            if self.opt.ceph == "true":
+                from petrel_client.client import Client
+                with io.BytesIO(self.client.get(audio_path)) as ap:
+                    _, audio = wavfile.read(ap)
+            else:
+                _, audio = wavfile.read(audio_path)
             audio = audio / 32768
         except Exception as e:
             return self._get_one(np.random.randint(self.length))
 
         # load mouth roi
         if self.opt.mouthroi_format == "npz":
-            with io.BytesIO(self.client.get(mouthroi_path)) as mp:
-                mouthroi = np.load(mp)["data"]
+            if self.opt.ceph == "true":
+                from petrel_client.client import Client
+                with io.BytesIO(self.client.get(mouthroi_path)) as mp:
+                    mouthroi = np.load(mp)["data"]
+            else:
+                mouthroi = np.load(mouthroi_path)["data"]
         else:  # h5
-            with io.BytesIO(self.client.get(mouthroi_path)) as mp:
-                mouthroi = h5py.File(mp, "r")["data"][...]
+            if self.opt.ceph == "true":
+                from petrel_client.client import Client
+                with io.BytesIO(self.client.get(mouthroi_path)) as mp:
+                    mouthroi = h5py.File(mp, "r")["data"][...]
+            else:
+                mouthroi = h5py.File(mouthroi_path, "r")["data"][...]
 
         if not (len(audio) >= self.audio_window and len(mouthroi) >= self.opt.num_frames):
             return self._get_one(np.random.randint(self.length))
@@ -154,7 +171,11 @@ class AudioVisualDataset(BaseDataset):
         frame_list = []
         for i in range(self.opt.number_of_face_frames):
             try:
-                frame = load_frame(io.BytesIO(self.client.get(video_path)))
+                if self.opt.ceph == "true":
+                    from petrel_client.client import Client
+                    frame = load_frame(io.BytesIO(self.client.get(video_path)))
+                else:
+                    frame = load_frame(video_path)
             except:
                 print(f'error video: {video_path}', flush=True)
                 return self._get_one(np.random.randint(self.length))
@@ -167,8 +188,10 @@ class AudioVisualDataset(BaseDataset):
         return frames, audio, mouthroi
 
     def __getitem__(self, index_batches):
-        if self.client is None:
-            self.client = Client(backend='petrel')
+        if self.opt.ceph == "true":
+            if self.client is None:
+                from petrel_client.client import Client
+                self.client = Client(backend='petrel')
 
         num_batch = len(index_batches)
 

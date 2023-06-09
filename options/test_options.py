@@ -5,8 +5,6 @@ from .base_options import BaseOptions
 class TestOptions(BaseOptions):
 	def initialize(self):
 		BaseOptions.initialize(self)
-		self.parser.add_argument('--ceph', type=str, choices=['true', 'false'], required=True)
-
 		self.parser.add_argument('--test_file', type=str, required=True)
 		self.parser.add_argument('--mix_number', type=int, default=2, required=True)
 

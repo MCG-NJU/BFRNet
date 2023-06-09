@@ -3,12 +3,12 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
-class AudioVisualModel(torch.nn.Module):
+class BFRNet(torch.nn.Module):
     def name(self):
-        return 'AudioVisualModel'
+        return 'BFRNet'
 
     def __init__(self, nets, opt):
-        super(AudioVisualModel, self).__init__()
+        super(BFRNet, self).__init__()
         self.opt = opt
         self.lip_net, self.face_net, self.unet, self.FRNet = nets[0], nets[1], nets[2], nets[3]
 
@@ -25,7 +25,6 @@ class AudioVisualModel(torch.nn.Module):
         pred_mask = scalar * self.unet(audio_spec, visual_feature, activation)  # (B, 2, 257, 256)
         return pred_mask
 
-    # input mask
     def _step2_refine(self, pred_masks, visual_features, num_speakers):
         # preds: (B, 2, 257, 256), visual_features: (B, 640, 64)
         pred_masks_clone = pred_masks.clone()  # (B, 2, 256, 256)
@@ -43,26 +42,26 @@ class AudioVisualModel(torch.nn.Module):
             pred_masks_clone[n] = pred_masks_clone_tmp
         return pred_masks_clone
 
-    def _get_spec(self, mask_prediction, audio_spec):
-        # mask_prediction: (B, 2, 256, 256),  audio_spec: (B, 2, 257, 256)
-        pred_spec_real = audio_spec[:, 0, :-1, :] * mask_prediction[:, 0, :, :] - audio_spec[:, 1, :-1, :] * mask_prediction[:, 1, :, :]
-        pred_spec_imag = audio_spec[:, 1, :-1, :] * mask_prediction[:, 0, :, :] + audio_spec[:, 0, :-1, :] * mask_prediction[:, 1, :, :]
-        pred_spec = torch.stack((pred_spec_real, pred_spec_imag), dim=1)  # (B, 2, 256, 256)
-        return pred_spec
+    # def _get_spec(self, mask_prediction, audio_spec):
+    #     # mask_prediction: (B, 2, 256, 256),  audio_spec: (B, 2, 257, 256)
+    #     pred_spec_real = audio_spec[:, 0, :-1, :] * mask_prediction[:, 0, :, :] - audio_spec[:, 1, :-1, :] * mask_prediction[:, 1, :, :]
+    #     pred_spec_imag = audio_spec[:, 1, :-1, :] * mask_prediction[:, 0, :, :] + audio_spec[:, 0, :-1, :] * mask_prediction[:, 1, :, :]
+    #     pred_spec = torch.stack((pred_spec_real, pred_spec_imag), dim=1)  # (B, 2, 256, 256)
+    #     return pred_spec
 
-    def _get_spec_add_dim(self, mask_prediction, audio_spec):
-        # mask_prediction: (B, 2, 256, 256)
-        pred_spec_real = audio_spec[:, 0, :-1, :] * mask_prediction[:, 0, :, :] - audio_spec[:, 1, :-1, :] * mask_prediction[:, 1, :, :]
-        pred_spec_imag = audio_spec[:, 1, :-1, :] * mask_prediction[:, 0, :, :] + audio_spec[:, 0, :-1, :] * mask_prediction[:, 1, :, :]
-        pred_spec_real = torch.cat((pred_spec_real, audio_spec[:, 0, -1:, :]), dim=1)
-        pred_spec_imag = torch.cat((pred_spec_imag, audio_spec[:, 1, -1:, :]), dim=1)
-        pred_spec = torch.stack((pred_spec_real, pred_spec_imag), dim=1)  # (B, 2, 257, 256)
-        return pred_spec
+    # def _get_spec_add_dim(self, mask_prediction, audio_spec):
+    #     # mask_prediction: (B, 2, 256, 256)
+    #     pred_spec_real = audio_spec[:, 0, :-1, :] * mask_prediction[:, 0, :, :] - audio_spec[:, 1, :-1, :] * mask_prediction[:, 1, :, :]
+    #     pred_spec_imag = audio_spec[:, 1, :-1, :] * mask_prediction[:, 0, :, :] + audio_spec[:, 0, :-1, :] * mask_prediction[:, 1, :, :]
+    #     pred_spec_real = torch.cat((pred_spec_real, audio_spec[:, 0, -1:, :]), dim=1)
+    #     pred_spec_imag = torch.cat((pred_spec_imag, audio_spec[:, 1, -1:, :]), dim=1)
+    #     pred_spec = torch.stack((pred_spec_real, pred_spec_imag), dim=1)  # (B, 2, 257, 256)
+    #     return pred_spec
 
-    def _spec_add_dim(self, pred_spec, audio_spec):
-        # pred_psec: (B, 2, 256, 256),  audio_spec: (B, 2, 257, 256)
-        result = torch.cat((pred_spec, audio_spec[:, :, -1:, :]), dim=2)
-        return result
+    # def _spec_add_dim(self, pred_spec, audio_spec):
+    #     # pred_psec: (B, 2, 256, 256),  audio_spec: (B, 2, 257, 256)
+    #     result = torch.cat((pred_spec, audio_spec[:, :, -1:, :]), dim=2)
+    #     return result
 
     def _get_spec_full(self, mask_prediction, audio_spec):
         # mask_prediction: (B, 2, 257, 256),  audio_spec: (B, 2, 257, 256)
@@ -106,7 +105,6 @@ class AudioVisualModel(torch.nn.Module):
             scalar = 1
             activation = 'Sigmoid'
 
-        # refine module: input mask, output mask
         mask_predictions_pre = self._step1_sep(audio_spec_mix, visual_features, activation, scalar)  # (B, 2, 257, 256)
         pred_specs_pre = self._get_spec_full(mask_predictions_pre, audio_spec_mix)  # (B, 2, 257, 256)
         mask_predictions_aft = self._step2_refine(mask_predictions_pre, visual_features.squeeze(2), input['num_speakers'])  # (B, 2, 257, 256)
@@ -158,7 +156,6 @@ class AudioVisualModel(torch.nn.Module):
             scalar = 1
             activation = 'Sigmoid'
 
-        # refine module: input mask, output mask
         mask_predictions_pre = self._step1_sep(audio_spec_mix, visual_features, activation, scalar)  # (B, 2, 257, 256)
 
         num_speakers = input['num_speakers']

@@ -1,68 +1,67 @@
 import io
 import math
 import os
+import h5py
+import numpy as np
 import os.path as osp
 from scipy.io import wavfile
-import numpy as np
-import torchvision.transforms as transforms
-import torch
-import torch.utils.data as data
-from options.test_options import TestOptions
-from models.models import ModelBuilder
-from models.audioVisual_model import AudioVisualModel
-from data.audioVisual_dataset import get_preprocessing_pipelines, load_frame
 from facenet_pytorch import MTCNN
 from mir_eval import separation
 from pypesq import pesq
-from pystoi import stoi
-from mmcv import ProgressBar
-from petrel_client.client import Client
-import h5py
+from mmengine import ProgressBar
+
+import torch
+import torch.utils.data as data
+import torchvision.transforms as transforms
+
+from options.test_options import TestOptions
+from models.build_models import ModelBuilder
+from models.audioVisual_model import BFRNet
+from dataset.audioVisual_dataset import get_preprocessing_pipelines, load_frame
 from utils.utils import collate_fn
 
 
 vision_transform_list = [transforms.ToTensor()]
 normalize = transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
+    mean=[0.485, 0.456, 0.406],
+    std=[0.229, 0.224, 0.225]
+)
 vision_transform_list.append(normalize)
 vision_transform = transforms.Compose(vision_transform_list)
 lipreading_preprocessing_func = get_preprocessing_pipelines()['test']
 
 
 def getSeparationMetrics(audio_pred, audio_gt):
-    (sdr, sir, sar, perm) = separation.bss_eval_sources(audio_gt, audio_pred, False)
-    # return sdr, sir, sar
-    return np.mean(sdr), np.mean(sir), np.mean(sar)
-
-
-def get_sisnr(pred_audios, gt_audios):
-    assert gt_audios.size() == pred_audios.size()  # (B, L)
-    # Step 1. Zero-mean norm
-    gt_audios = gt_audios - torch.mean(gt_audios, axis=-1, keepdim=True)
-    pred_audios = pred_audios - torch.mean(pred_audios, axis=-1, keepdim=True)
-    # Step 2. SI-SNR
-    # s_target = <s', s>s / ||s||^2
-    ref_energy = torch.sum(gt_audios ** 2, axis=-1, keepdim=True) + 1e-6
-    proj = torch.sum(gt_audios * pred_audios, axis=-1, keepdim=True) * gt_audios / ref_energy
-    # e_noise = s' - s_target
-    noise = pred_audios - proj
-    # SI-SNR = 10 * log_10(||s_target||^2 / ||e_noise||^2)
-    ratio = torch.sum(proj ** 2, axis=-1) / (torch.sum(noise ** 2, axis=-1) + 1e-6)
-    sisnr = 10 * torch.log10(ratio + 1e-6)
-    return torch.mean(sisnr)
+    """
+    calculate the evaluation metric SDR
+    :param audio_pred:     prediction             batch_size * length
+    :param audio_gt:       ground truth           batch_size * length
+    :return:   SDR
+    """
+    sdr, _, _, _ = separation.bss_eval_sources(audio_gt, audio_pred, False)
+    return np.mean(sdr)
 
 
 def audio_normalize(samples, desired_rms=0.1, eps=1e-4):
-    # samples: batch, num_speakers, L
+    """
+    normalize the samples to have the desired root_mean_square
+    :param samples:                   B*N*L
+    :param desired_rms:    desired root_mean_square
+    :param eps:
+    :return: normalized samples
+    """
     rms = np.maximum(eps, np.sqrt(np.mean(samples**2, axis=-1)))
     samples = samples * np.expand_dims(desired_rms / rms, axis=-1)
     return samples
 
 
 def supp_audio(audio, minimum_length):
-    # B, L
+    """
+    repeat the audio to the target length
+    :param audio:        B*L
+    :param minimum_length:
+    :return:            B*L
+    """
     if len(audio[0]) >= minimum_length:
         return audio[:, :minimum_length]
     else:
@@ -70,7 +69,12 @@ def supp_audio(audio, minimum_length):
 
 
 def supp_mouth(mouth, minimum_length):
-    # (B, L, 88, 88)
+    """
+    repeat the vision to the target length
+    :param mouth:              B*L*88*88
+    :param minimum_length:
+    :return:                   B*L*88*88
+    """
     if len(mouth[0]) >= minimum_length:
         return mouth[:, :minimum_length]
     else:
@@ -86,6 +90,7 @@ class dataset(data.Dataset):
         self.mtcnn = mtcnn
 
         if opt.ceph == "true":
+            from petrel_client.client import Client
             self.client = Client()
             with io.BytesIO(self.client.get(mixture_path, update_cache=True)) as mp:
                 self.mix_lst = [d.decode('utf-8').strip() for d in mp.readlines()]
@@ -98,9 +103,11 @@ class dataset(data.Dataset):
     def __len__(self):
         return len(self.mix_lst)
 
-    def process_wav(self, tokens):
+    # def preprocess(self):
+
+    def process_audio(self, tokens):
         num_speakers = len(tokens)
-        # audio
+
         audios = []
         audio_length = []
         for n in range(num_speakers):
@@ -110,7 +117,7 @@ class dataset(data.Dataset):
                     _, audio = wavfile.read(ap)
             else:
                 _, audio = wavfile.read(audio_path)
-            audio = audio / 32768
+            audio = audio / 32768  # normalize the int16 data to [-1,1]
             audios.append(audio)
             audio_length.append(len(audio))
         target_length = min(audio_length)
@@ -118,28 +125,27 @@ class dataset(data.Dataset):
         for i in range(num_speakers):
             audios[i] = audios[i][:target_length]
         audios = np.array(audios)
-        margin = int(2.55 * 16000)
-        target = ((target_length + margin - 1) // margin) * margin
-        seg = target // margin
+        slen = int(2.55 * 16000)
+        target = ((target_length + slen - 1) // slen) * slen
+        seg = target // slen
 
-        audios = supp_audio(audios, target)  # num_speakers, target
-        audios = audios.reshape(num_speakers, seg, margin).transpose((1, 0, 2))  # seg, num_speakers, margin
+        audios = supp_audio(audios, target)
+        audios = audios.reshape(num_speakers, seg, slen).transpose((1, 0, 2))  # seg, num_speakers, slen
         audios = audio_normalize(audios) / num_speakers
-        audios = torch.FloatTensor(audios)  # seg, num_speakers, margin
+        audios = torch.FloatTensor(audios)  # seg, num_speakers, slen
 
         # mixture
-        audio_mix = torch.FloatTensor(torch.sum(audios, dim=1))  # seg, margin
+        audio_mix = torch.FloatTensor(torch.sum(audios, dim=1))  # seg, num_speakers, slen
 
         audio_mix_spec = self.generate_spectrogram_complex(audio_mix, 512, 160, 400)  # seg, 2, 257, 256
         audio_mix_spec = audio_mix_spec.unsqueeze(1).repeat((1, num_speakers, 1, 1, 1))  # seg, speakers, 2, 257, 256
-
-        audio_mix = audio_mix.unsqueeze(1).repeat(1, num_speakers, 1)  # seg, num_speakers, margin
+        audio_mix = audio_mix.unsqueeze(1).repeat(1, num_speakers, 1)  # seg, num_speakers, slen
 
         return audios, audio_mix, audio_mix_spec, target_length
 
     def process_mouth(self, tokens, seg):
         num_speakers = len(tokens)
-        # mouth
+
         mouthrois = []
         mouth_length = []
         for n in range(num_speakers):
@@ -166,20 +172,20 @@ class dataset(data.Dataset):
             mouthrois[n] = mouthrois[n][:mouth_length]  # T, 96, 96
         mouthrois = np.array(mouthrois)  # num_speakers, T, 96, 96
 
-        # sup
-        margin = 64
-        target = seg * margin
+        slen = 64
+        target = seg * slen
         mouthrois = supp_mouth(mouthrois, target)  # num_speakers, target, 96, 96
 
         # preprocess
         tmp_mouthrois = []  # num_speakers, target, 88, 88
         for n in range(num_speakers):
             tmp_mouthrois.append(lipreading_preprocessing_func(mouthrois[n]))
-        mouthrois = torch.FloatTensor(tmp_mouthrois).reshape(num_speakers, seg, margin, 88, 88).permute(1, 0, 2, 3, 4).unsqueeze(2)
-        # (seg, num_speakers, 1, margin, 88, 88)
-        return mouthrois
+        mouthrois = torch.FloatTensor(tmp_mouthrois).reshape(num_speakers, seg, slen, 88, 88).permute(1, 0, 2, 3, 4).unsqueeze(2)
+
+        return mouthrois  # (seg, num_speakers, 1, slen, 88, 88)
 
     def process_frame(self, tokens, seg):
+        # sample a frame from a video
         num_speakers = len(tokens)
         frames = []
         for n in range(num_speakers):
@@ -228,11 +234,10 @@ class dataset(data.Dataset):
 
     def __getitem__(self, index):
         tokens = self.mix_lst[index].split(' ')
-
         assert self.opt.mix_number == len(tokens)
 
         try:
-            audios, audio_mix, audio_mix_spec, target_length = self.process_wav(tokens)  # seg, num_speakers, margin
+            audios, audio_mix, audio_mix_spec, target_length = self.process_audio(tokens)  # seg, num_speakers, slen
             seg = len(audios)
         except Exception as e:
             return self.__getitem__(index - 1)
@@ -259,13 +264,13 @@ class dataset(data.Dataset):
         return data
 
 
-def process_mixture(model, data_loader):
+def inference(model, data_loader):
     model.eval()
-    sdr_list, sir_list, sar_list = [], [], []
-    sdri_list, siri_list = [], []
-    sisnr_list = []
-    pesq_list = []
-    stoi_list = []
+
+    # evaluation metrics
+    sdr_list, pesq_list = [], []
+
+    # progress bar
     pb = ProgressBar(len(data_loader), start=False)
     pb.start()
     window = torch.hann_window(400).cuda()
@@ -278,13 +283,14 @@ def process_mixture(model, data_loader):
             inputs['audio_spec_mix'] = data['audio_spec_mix'].reshape(total_seg * num_speakers, 2, 257, 256).clone().detach().cuda()
             inputs['num_speakers'] = num_speakers
 
+            # feed to network
             output = model(inputs)
 
             pred_spec = output['pred_specs_aft']  # total_seg * num_speakers, 257, 256, 2
             pred_audio = torch.istft(pred_spec, n_fft=512, hop_length=160, win_length=400, window=window, center=True)
             pred_audio = pred_audio.reshape(total_seg, num_speakers, -1)  # total_seg, num_speakers, L
-            # total_seg, num_speakers, L
             seg_list = data['seg']
+
             cumsum = 0
             for idx, seg in enumerate(seg_list):
                 tmp_pred_audio = pred_audio[cumsum: cumsum + seg]  # seg, num_speakers, L
@@ -293,74 +299,34 @@ def process_mixture(model, data_loader):
                 tmp_audio = data['audios'][cumsum: cumsum + seg]  # seg, num_speakers, L
                 tmp_audio = tmp_audio.permute(1, 0, 2).reshape(num_speakers, -1)[:, :data['target_length'][idx]]  # num_speakers, target_length
 
-                tmp_audio_mix = data['audio_mix'][cumsum: cumsum + seg]  # seg, num_speakers, L
-                tmp_audio_mix = tmp_audio_mix.permute(1, 0, 2).reshape(num_speakers, -1)[:, :data['target_length'][idx]]  # num_speakers, target_length
-
                 cumsum += seg
-
-                sisnr = get_sisnr(tmp_pred_audio, tmp_audio).item()
 
                 tmp_pred_audio = tmp_pred_audio.detach().numpy()
                 tmp_audio = tmp_audio.numpy()
-                tmp_audio_mix = tmp_audio_mix.numpy()
 
-                sdr, sir, sar = getSeparationMetrics(tmp_pred_audio, tmp_audio)
-                sdr_mix, sir_mix, sar_mix = getSeparationMetrics(tmp_audio_mix, tmp_audio)
-
-                sdr = np.mean(sdr)
-                sir = np.mean(sir)
-                sar = np.mean(sar)
-                sdr_mix = np.mean(sdr_mix)
-                sir_mix = np.mean(sir_mix)
-
-                sdri = sdr - sdr_mix
-                siri = sir - sir_mix
-
+                # calculate SDR
+                sdr = getSeparationMetrics(tmp_pred_audio, tmp_audio)
+                # sdr = np.mean(sdr)
                 sdr_list.append(sdr)
-                sdri_list.append(sdri)
-                sir_list.append(sir)
-                siri_list.append(siri)
-                sar_list.append(sar)
-                sisnr_list.append(sisnr)
+
+                # calculate pesq for each speaker
                 for n in range(num_speakers):
                     pesq_score_ = pesq(tmp_pred_audio[n], tmp_audio[n], 16000)
-                    if math.isnan(pesq_score_) or math.isinf(pesq_score_):
-                        print(f"tmp_pred_audio: {tmp_pred_audio[n]}", flush=True)
-                        print(f"tmp_audio: {tmp_audio[n]}", flush=True)
-                    else:
-                        pesq_list.append(pesq_score_)
-                    stoi_score_ = stoi(tmp_audio[n], tmp_pred_audio[n], 16000, extended=False)
-                    stoi_list.append(stoi_score_)
+                    pesq_list.append(pesq_score_)
 
             pb.update()
 
     avg_sdr = sum(sdr_list) / len(sdr_list)
-    avg_sdri = sum(sdri_list) / len(sdri_list)
-
-    avg_sir = sum(sir_list) / len(sir_list)
-    avg_siri = sum(siri_list) / len(siri_list)
-
-    avg_sar = sum(sar_list) / len(sar_list)
-
     avg_pesq = sum(pesq_list) / len(pesq_list)
-    avg_stoi = sum(stoi_list) / len(stoi_list)
-
-    avg_sisnr = sum(sisnr_list) / len(sisnr_list)
 
     print('SDR: %.2f' % avg_sdr)
-    print('SIR: %.2f' % avg_sir)
-    print('SAR: %.2f' % avg_sar)
     print('PESQ: %.2f' % avg_pesq)
-    print('STOI: %.2f' % avg_stoi)
-    print('SDRi: %.2f' % avg_sdri)
-    print('SIRi: %.2f' % avg_siri)
-    print('SISNR: %.2f' % avg_sisnr)
 
 
 def main():
-    #load test arguments
+    # load test configuration
     opt = TestOptions().parse()
-    opt.device = torch.device("cuda")
+    opt.device = torch.device("cuda:0")
     opt.mode = 'test'
     opt.rank = 0
 
@@ -394,12 +360,11 @@ def main():
     )
 
     nets = (lip_net, face_net, unet, FRNet)
-
-    # construct our audio-visual model
-    model = AudioVisualModel(nets, opt).cuda()
+    model = BFRNet(nets, opt).cuda()
     model.eval()
     mtcnn = MTCNN(keep_all=True, device=opt.device)
 
+    # build data loader
     data_set = dataset(opt, opt.test_file, opt.audio_root, opt.mouth_root, opt.mp4_root, mtcnn)
     data_loader = data.DataLoader(
         data_set,
@@ -408,7 +373,7 @@ def main():
         num_workers=opt.nThreads,
         collate_fn=collate_fn
     )
-    process_mixture(model, data_loader)
+    inference(model, data_loader)
 
 
 if __name__ == '__main__':

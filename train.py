@@ -1,6 +1,6 @@
 import os
 import os.path as osp
-from mmcv import ProgressBar
+from mmengine import ProgressBar
 import subprocess
 from torch_mir_eval import bss_eval_sources
 import random
@@ -12,38 +12,15 @@ import platform
 import time
 
 from options.train_options import TrainOptions
-from data.data_loader import CreateDataLoader
-from models.models import ModelBuilder
-from models.audioVisual_model import AudioVisualModel
+from dataset.data_loader import CreateDataLoader
+from models.build_models import ModelBuilder
+from models.audioVisual_model import BFRNet
 from models import criterion
 
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-
-
-def detect_anomalous_parameters(loss, model):
-    parameters_in_graph = set()
-    visited = set()
-
-    def traverse(grad_fn):
-        if grad_fn is None:
-            return
-        if grad_fn not in visited:
-            visited.add(grad_fn)
-            if hasattr(grad_fn, 'variable'):
-                parameters_in_graph.add(grad_fn.variable)
-            parents = grad_fn.next_functions
-            if parents is not None:
-                for parent in parents:
-                    grad_fn = parent[0]
-                    traverse(grad_fn)
-
-    traverse(loss.grad_fn)
-    for n, p in model.named_parameters():
-        if p not in parameters_in_graph and p.requires_grad:
-            print(f"{n} with shape {p.size()} is not in the computational graph \n", flush=True)
 
 
 def set_random_seed(seed):
@@ -53,8 +30,8 @@ def set_random_seed(seed):
     np.random.seed(seed)
 
 
-############## DDP relative
 def _init_slurm(opt):
+    """the setup of slurm launch."""
     proc_id = int(os.environ['SLURM_PROCID'])
     ntasks = int(os.environ['SLURM_NTASKS'])
     node_list = os.environ['SLURM_NODELIST']
@@ -83,6 +60,7 @@ def _init_slurm(opt):
 
 
 def _init_pytorch(opt):
+    """the setup of pytorch distributed launch."""
     rank = int(os.environ['RANK'])
     local_rank = rank % torch.cuda.device_count()
     opt.device = torch.device("cuda", local_rank)
@@ -92,15 +70,8 @@ def _init_pytorch(opt):
     dist.init_process_group(backend="nccl")
 
 
-def _reduce_tensor(tensor):
-    rt = tensor.clone()
-    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
-    rt /= dist.get_world_size()
-    return rt
-
-
-################ init
 def _init():
+    """load options, prepare for distributed training, create a logger."""
     opt = TrainOptions().parse()
 
     warnings.filterwarnings('ignore')
@@ -115,18 +86,9 @@ def _init():
     # set random seed
     set_random_seed(opt.seed)
 
-    # init
     _init_slurm(opt)
 
-    # prevent stucking
-    if platform.system() != 'Windows':
-        # https://github.com/pytorch/pytorch/issues/973
-        import resource
-        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-        hard_limit = rlimit[1]
-        soft_limit = min(4096, hard_limit)
-        resource.setrlimit(resource.RLIMIT_NOFILE, (soft_limit, hard_limit))
-
+    # log
     writer = None
     if opt.rank == 0:
         args = vars(opt)
@@ -153,16 +115,18 @@ def _init():
     return opt
 
 
-################ construct model, optimizer, loss
 def create_model(opt):
+    """construct model."""
     # Network Builders
     builder = ModelBuilder()
     nets = []
 
+    # build lip net
     lip_net = builder.build_lipnet(
         opt=opt,
         config_path=opt.lipnet_config_path,
         weights=opt.weights_lipnet)
+    # resume from checkpoint (optional)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'lipnet_latest.pth')
         lip_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -181,6 +145,7 @@ def create_model(opt):
         fc_out=opt.face_feature_dim,
         with_fc=opt.with_fc,
         weights=opt.weights_facenet)
+    # resume from checkpoint (optional)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'facenet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'facenet_latest.pth')
         face_net.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -201,6 +166,7 @@ def create_model(opt):
         output_nc=opt.unet_output_nc,
         audioVisual_feature_dim=opt.unet_ngf * 8 + visual_feature_dim,
         weights=opt.weights_unet)
+    # resume from checkpoint (optional)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'unet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'unet_latest.pth')
         unet.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -213,6 +179,7 @@ def create_model(opt):
         num_layers=opt.FRNet_layers,
         weights=opt.weights_FRNet
     )
+    # resume from checkpoint (optional)
     if opt.resume and osp.exists(osp.join(opt.checkpoints_dir, opt.name, 'FRNet_latest.pth')):
         ckpt_path = osp.join(opt.checkpoints_dir, opt.name, 'FRNet_latest.pth')
         FRNet.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -221,13 +188,14 @@ def create_model(opt):
     nets.append(FRNet)
 
     # construct our audio-visual model
-    model = AudioVisualModel(nets, opt)
+    model = BFRNet(nets, opt)
     model.to(opt.device)
     model = DDP(model, device_ids=[opt.local_rank], output_device=opt.local_rank, find_unused_parameters=True)
     return model
 
 
 def create_optimizer(model, opt):
+    """create optimizer for each sub-network."""
     model2 = model.module
     lip_net, face_net, unet, FRNet = model2.lip_net, model2.face_net, model2.unet, model2.FRNet
     param_groups = [{'params': lip_net.parameters(), 'lr': opt.lr_lipnet},
@@ -245,6 +213,7 @@ def create_optimizer(model, opt):
 
 
 def create_loss(opt):
+    """create loss function si-snr."""
     crit = {}
     loss_sisnr = criterion.SISNRLoss()
     loss_sisnr.to(opt.device)
@@ -252,39 +221,52 @@ def create_loss(opt):
     return crit
 
 
-##################
-
-
 def decrease_learning_rate(optimizer, decay_factor=0.1):
     for param_group in optimizer.param_groups:
         param_group['lr'] *= decay_factor
 
 
-def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
+def _reduce_tensor(tensor):
+    """reduce the loss tensor between gpus."""
+    rt = tensor.clone()
+    dist.all_reduce(rt, op=dist.ReduceOp.SUM)
+    rt /= dist.get_world_size()
+    return rt
+
+
+def evaluate(model, crit, writer, batch_index, data_loader_val, epoch, opt):
+    """
+    evaluate the model.
+    :param model:             model
+    :param crit:              criterion
+    :param writer:            logger
+    :param batch_index:       cumulative batch index
+    :param data_loader_val:   data loader
+    :param epoch:             current epoch
+    :param opt:
+    """
     data_loader_val.set_epoch(epoch)
+    # display the evaluation progress in process 0
     if opt.rank == 0:
         pb = ProgressBar(len(data_loader_val), start=False)
         pb.start()
     window = opt.window
-    sisnr_losses = []
-    sdrs_dict, sirs_dict, sars_dict = defaultdict(list), defaultdict(list), defaultdict(list)
+    batch_loss = []
+    sdrs_dict = defaultdict(list)
+
     with torch.no_grad():
 
         time.sleep(5)
 
         for i, val_data in enumerate(data_loader_val):
             output = model.forward(val_data)
-            sisnr_loss = get_sisnr_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
-            reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
-            sisnr_losses.append(reduced_sisnr_loss.item())
+            loss = calculate_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
+            reduced_loss = _reduce_tensor(loss.data)
+            batch_loss.append(reduced_loss.item())
             try:
-                sdr_d, sir_d, sar_d = calculate_sdr(output, window, opt)
+                sdr_d = calculate_sdr(output, window, opt)
                 for key in sdr_d.keys():
                     sdrs_dict[key] += sdr_d[key]
-                for key in sir_d.keys():
-                    sirs_dict[key] += sir_d[key]
-                for key in sar_d.keys():
-                    sars_dict[key] += sar_d[key]
             except Exception as e:
                 pass
             if opt.rank == 0:
@@ -292,135 +274,89 @@ def display_val(model, crit, writer, index, data_loader_val, epoch, opt):
             dist.barrier()
     for key in sdrs_dict.keys():
         sdrs_dict[key] = sum(sdrs_dict[key]) / len(sdrs_dict[key])
-    for key in sirs_dict.keys():
-        sirs_dict[key] = sum(sirs_dict[key]) / len(sirs_dict[key])
-    for key in sars_dict.keys():
-        sars_dict[key] = sum(sars_dict[key]) / len(sars_dict[key])
+    # print the loss
     if opt.rank == 0:
-        avg_sisnr_loss = sum(sisnr_losses) / len(sisnr_losses)
-        writer.add_scalar('data/val_sisnr_loss', avg_sisnr_loss, index)
-        print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
+        avg_loss = sum(batch_loss) / len(batch_loss)
+        writer.add_scalar('data/val_sisnr_loss', avg_loss, batch_index)
+        print('sisnr loss: %.5f, ' % avg_loss, end='')
         for key in sdrs_dict.keys():
-            writer.add_scalar(f'data/val_{key}', sdrs_dict[key], index)
-        for key in sirs_dict.keys():
-            writer.add_scalar(f'data/val_{key}', sirs_dict[key], index)
-        for key in sars_dict.keys():
-            writer.add_scalar(f'data/val_{key}', sars_dict[key], index)
+            writer.add_scalar(f'data/val_{key}', sdrs_dict[key], batch_index)
     return sdrs_dict['sdr2']
 
 
-def get_sisnr_loss(opt, output, loss_sisnr):
-    gt_specs = output['audio_specs']  # (B, 257, 256, 2)
-    pred_specs_pre = output['pred_specs_pre']  # (B, 257, 256, 2)
-    pred_specs_aft = output['pred_specs_aft']  # (B, 257, 256, 2)
+def calculate_loss(opt, output, loss_func):
+    """
+    Calculate si-snr loss
+    :param output:       output of model
+    :param loss_func:    loss function
+    """
+    # obtain ground truth and predicted spectrograms
+    gt_specs = output['audio_specs']  # (B, 257, 256, 2)    ground truth spectrogram
+    pred_specs_pre = output['pred_specs_pre']  # (B, 257, 256, 2)    predicted spectrogram before FRNet
+    pred_specs_aft = output['pred_specs_aft']  # (B, 257, 256, 2)    predicted spectrogram after FRNet
 
+    # obtain the wavform by spectrogram using ISTFT (inverse short-time fourier transform)
     pred_audios_pre = torch.istft(pred_specs_pre, n_fft=opt.n_fft, hop_length=opt.hop_size, win_length=opt.window_size, window=opt.window, center=True)  # (B, L)
     pred_audios_aft = torch.istft(pred_specs_aft, n_fft=opt.n_fft, hop_length=opt.hop_size, win_length=opt.window_size, window=opt.window, center=True)  # (B, L)
     gt_audios = torch.istft(gt_specs, n_fft=opt.n_fft, hop_length=opt.hop_size, win_length=opt.window_size, window=opt.window, center=True)  # (B, L)
 
-    sisnr_loss_pre = loss_sisnr(pred_audios_pre, gt_audios) * opt.lamda
-    sisnr_loss_aft = loss_sisnr(pred_audios_aft, gt_audios) * (1 - opt.lamda)
+    # calculate the loss
+    sisnr_loss_pre = loss_func(pred_audios_pre, gt_audios) * opt.lamda
+    sisnr_loss_aft = loss_func(pred_audios_aft, gt_audios) * (1 - opt.lamda)
     sisnr_loss = sisnr_loss_pre + sisnr_loss_aft
     return sisnr_loss
 
 
-def _getSeparationMetrics(src, dst):  # src: (B, N, L)
-    # audio1: (batch, length)
-    # src = torch.stack((audio1, audio2), dim=1).cuda()  # (B, N, L)
-    # dst = torch.stack((audio1_gt, audio2_gt), dim=1).cuda()
-    sdr, sir, sar, perm = bss_eval_sources(dst, src, compute_permutation=False)
-    return torch.mean(sdr), torch.mean(sir), torch.mean(sar)
-
-
-def _cal_SISNR(source, estimate_source, EPS=1e-6):
-    """Calcuate Scale-Invariant Source-to-Noise Ratio (SI-SNR)
-    Args:
-        source: torch tensor, [batch size, sequence length]
-        estimate_source: torch tensor, [batch size, sequence length]
-    Returns:
-        SISNR, [batch size]
+def _get_metrics(src, dst):
     """
-    assert source.size() == estimate_source.size()
-
-    # Step 1. Zero-mean norm
-    source = source - torch.mean(source, axis=-1, keepdim=True)
-    estimate_source = estimate_source - torch.mean(estimate_source, axis=-1, keepdim=True)
-
-    # Step 2. SI-SNR
-    # s_target = <s', s>s / ||s||^2
-    ref_energy = torch.sum(source ** 2, axis=-1, keepdim=True) + EPS
-    proj = torch.sum(source * estimate_source, axis=-1, keepdim=True) * source / ref_energy
-    # e_noise = s' - s_target
-    noise = estimate_source - proj
-    # SI-SNR = 10 * log_10(||s_target||^2 / ||e_noise||^2)
-    ratio = torch.sum(proj ** 2, axis=-1) / (torch.sum(noise ** 2, axis=-1) + EPS)
-    sisnr = 10 * torch.log10(ratio + EPS)
-
-    return sisnr
+    calculate the evaluation metric SDR
+    :param src:   prediction        batch_size * num_speakers * length
+    :param dst:   ground truth      batch_size * num_speakers * length
+    :return:  SDR
+    """
+    sdr, _, _, _ = bss_eval_sources(dst, src, compute_permutation=False)
+    return torch.mean(sdr)
 
 
 def calculate_sdr(output, window, opt):
+    """calculate sdr."""
     with torch.no_grad():
         # fetch data and predictions
-        gt_specs = output['audio_specs']
-        pred_specs_aft = output['pred_specs_aft']
+        gt_specs = output['audio_specs']  # ground truth
+        pred_specs_aft = output['pred_specs_aft']  # prediction
         num_speakers = output['num_speakers']
 
+        # obtain the wavform by spectrogram using ISTFT (inverse short-time fourier transform)
         pred_audios = torch.istft(pred_specs_aft, n_fft=opt.n_fft, hop_length=opt.hop_size,
                                   win_length=opt.window_size, window=window, center=True)  # (B, L)
 
+        # ground truth wavforms
         gt_audios = torch.istft(gt_specs, n_fft=opt.n_fft, hop_length=opt.hop_size,
                                 win_length=opt.window_size, window=window, center=True)  # (B, L)
 
-        sdr_dict, sir_dict, sar_dict, sisnr_dict = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+        sdr_dict = defaultdict(list)
         pre_num = 0
+        # calculate sdr for each kind of mixture
         for i in range(len(num_speakers)):
             num_spk = num_speakers[i].item()  # 2, 3, 4, 5
             cur_num = pre_num + num_spk
-            if num_spk != 5:
-                sdr, sir, sar = _getSeparationMetrics(pred_audios[pre_num: cur_num].unsqueeze(0), gt_audios[pre_num: cur_num].unsqueeze(0))
-                if not math.isnan(sdr) and not math.isinf(sdr):
-                    sdr_dict[f'sdr{num_spk}'].append(sdr.item())
-                if not math.isnan(sir) and not math.isinf(sir):
-                    sir_dict[f'sir{num_spk}'].append(sir.item())
-                if not math.isnan(sar) and not math.isinf(sar):
-                    sar_dict[f'sar{num_spk}'].append(sar.item())
+            # if num_spk != 5:
+            sdr = _get_metrics(pred_audios[pre_num: cur_num].unsqueeze(0), gt_audios[pre_num: cur_num].unsqueeze(0))
+            if not math.isnan(sdr) and not math.isinf(sdr):
+                sdr_dict[f'sdr{num_spk}'].append(sdr.item())
             pre_num = cur_num
 
-    return sdr_dict, sir_dict, sar_dict
+    return sdr_dict
 
 
-def main():
-    # initialize
-    opt = _init()
+def _save_checkpoints(opt, model, state):
+    torch.save(model.module.lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, f'lipnet_{state}.pth'))
+    torch.save(model.module.face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, f'facenet_{state}.pth'))
+    torch.save(model.module.unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, f'unet_{state}.pth'))
+    torch.save(model.module.FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, f'FRNet_{state}.pth'))
 
-    # create data loader
-    data_loader = CreateDataLoader(opt)
-    if opt.validation_on:
-        opt.mode = 'val'
-        data_loader_val = CreateDataLoader(opt)
-        opt.mode = 'train'  # set it back
 
-    # create model
-    model = create_model(opt)
-    model2 = model.module
-    lip_net, face_net, unet, FRNet = model2.lip_net, model2.face_net, model2.unet, model2.FRNet
-
-    # create optimizer
-    optimizer = create_optimizer(model, opt)
-    # create loss
-    crit = create_loss(opt)
-    opt.window = torch.hann_window(opt.window_size).cuda()
-
-    cudnn.benchmark = True
-
-    # initialization
-    data_loading_time = []
-    model_forward_time = []
-    model_backward_time = []
-
-    batch_sisnr_loss = []
-
+def train(opt, model, data_loader, data_loader_val, optimizer, crit, ):
     best_sdr = -float("inf")
     start_epoch = 0
     start_batch = 0
@@ -444,6 +380,10 @@ def main():
         for pbt in range(cumsum_batch):
             pb.update()
 
+    data_loading_time = []
+    model_forward_time = []
+    model_backward_time = []
+    batch_loss = []
     for epoch in range(start_epoch, opt.epochs):
 
         data_loader.set_epoch(epoch)
@@ -451,6 +391,7 @@ def main():
 
         time.sleep(5)
 
+        # resume from the last batch
         if epoch == start_epoch and start_batch > 0:
             indices = data_loader._get_indices()
             data_loader.dataloader.sampler.indices = indices[start_batch * opt.batchSize:]
@@ -471,11 +412,9 @@ def main():
             iter_data_forwarded_time = time.time()
 
             # calculate loss
-            loss = 0
-            sisnr_loss = get_sisnr_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
-            loss = loss + sisnr_loss
-            reduced_sisnr_loss = _reduce_tensor(sisnr_loss.data)
-            batch_sisnr_loss.append(reduced_sisnr_loss.item())
+            loss = calculate_loss(opt, output, crit['loss_sisnr']) * opt.sisnr_loss_weight
+            reduced_loss = _reduce_tensor(loss.data)
+            batch_loss.append(reduced_loss.item())
 
             loss.backward()
             optimizer.step()
@@ -489,10 +428,10 @@ def main():
 
             if (batch + 1) % opt.display_freq == 0 and opt.rank == 0:
                 print(f'Epoch %d, Batch %d: ' % (epoch, batch), end='')
-                avg_sisnr_loss = sum(batch_sisnr_loss) / len(batch_sisnr_loss)
-                print('sisnr loss: %.5f, ' % avg_sisnr_loss, end='')
+                avg_loss = sum(batch_loss) / len(batch_loss)
+                print('sisnr loss: %.5f, ' % avg_loss, end='')
 
-                batch_sisnr_loss = []
+                batch_loss = []
 
                 if opt.tensorboard:
                     opt.writer.add_scalar('data/lipnet_lr', optimizer.state_dict()['param_groups'][0]['lr'],
@@ -502,10 +441,10 @@ def main():
                     opt.writer.add_scalar('data/unet_lr', optimizer.state_dict()['param_groups'][2]['lr'], cumsum_batch)
                     opt.writer.add_scalar('data/FRNet_lr', optimizer.state_dict()['param_groups'][3]['lr'],
                                           cumsum_batch)
-                    opt.writer.add_scalar('data/sisnr_loss', avg_sisnr_loss, cumsum_batch)
-                print('data load: %.3f s, ' % (sum(data_loading_time)/len(data_loading_time)), end='')
-                print('forward: %.3f s, ' % (sum(model_forward_time)/len(model_forward_time)), end='')
-                print('backward: %.3f s' % (sum(model_backward_time)/len(model_backward_time)))
+                    opt.writer.add_scalar('data/sisnr_loss', avg_loss, cumsum_batch)
+                print('data load: %.3f s, ' % (sum(data_loading_time) / len(data_loading_time)), end='')
+                print('forward: %.3f s, ' % (sum(model_forward_time) / len(model_forward_time)), end='')
+                print('backward: %.3f s' % (sum(model_backward_time) / len(model_backward_time)))
                 data_loading_time = []
                 model_forward_time = []
                 model_backward_time = []
@@ -515,26 +454,22 @@ def main():
                 opt.mode = 'val'
                 if opt.rank == 0:
                     print('Begin evaluate at Epoch %d, Batch %d: ' % (epoch, batch), end='')
-                val_sdr = display_val(model, crit, opt.writer, cumsum_batch, data_loader_val, epoch, opt)
+                val_sdr = evaluate(model, crit, opt.writer, cumsum_batch, data_loader_val, epoch, opt)
                 model.train()
                 opt.mode = 'train'
                 # save the model that achieves the smallest validation error
                 if val_sdr > best_sdr or math.isnan(best_sdr) or math.isinf(best_sdr):
                     best_sdr = val_sdr
                     if opt.rank == 0:
-                        print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, batch, val_sdr))
-                        torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
-                        torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-                        torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
-                        torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_best.pth'))
+                        print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (
+                        epoch, batch, val_sdr))
+                        _save_checkpoints(opt, model, "best")
 
             if (batch + 1) % opt.save_latest_freq == 0 and opt.rank == 0:
                 print('saving the latest model (epoch %d, batch %d)' % (epoch, batch))
-                torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
-                torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-                torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
-                torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_latest.pth'))
-                ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch, 'batch': batch + 1, 'cumsum_batch': cumsum_batch + 1, 'best_sdr': best_sdr}
+                _save_checkpoints(opt, model, "latest")
+                ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch, 'batch': batch + 1,
+                             'cumsum_batch': cumsum_batch + 1, 'best_sdr': best_sdr}
                 torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
             iter_start_time = time.time()
@@ -546,13 +481,12 @@ def main():
 
             dist.barrier()
 
-        if opt.rank == 0:  # save latest model for each epoch
+        # save checkpoints and evaluate model
+        if opt.rank == 0:  # save the latest model for each epoch
             print('saving the latest model (epoch %d)' % epoch)
-            torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_latest.pth'))
-            torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_latest.pth'))
-            torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_latest.pth'))
-            torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_latest.pth'))
-            ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch + 1, 'batch': 0, 'cumsum_batch': cumsum_batch, 'best_sdr': best_sdr}
+            _save_checkpoints(opt, model, "latest")
+            ckpt_dict = {'optim_state_dict': optimizer.state_dict(), 'epoch': epoch + 1, 'batch': 0,
+                         'cumsum_batch': cumsum_batch, 'best_sdr': best_sdr}
             torch.save(ckpt_dict, os.path.join('.', opt.checkpoints_dir, opt.name, 'resume_latest.pth'))
 
         if (epoch + 1) == opt.epochs:  # the last epoch, evaluate model
@@ -560,7 +494,7 @@ def main():
             opt.mode = 'val'
             if opt.rank == 0:
                 print('Begin evaluate at last Epoch %d, Batch %d: ' % (epoch, len(data_loader)), end='')
-            val_sdr = display_val(model, crit, opt.writer, cumsum_batch, data_loader_val, epoch, opt)
+            val_sdr = evaluate(model, crit, opt.writer, cumsum_batch, data_loader_val, epoch, opt)
             model.train()
             opt.mode = 'train'
             # save the model that achieves the smallest validation error
@@ -568,10 +502,7 @@ def main():
                 best_sdr = val_sdr
                 if opt.rank == 0:
                     print('saving the best model (epoch %d, batch %d) with validation sdr %.3f\n' % (epoch, len(data_loader), val_sdr))
-                    torch.save(lip_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'lipnet_best.pth'))
-                    torch.save(face_net.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'facenet_best.pth'))
-                    torch.save(unet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'unet_best.pth'))
-                    torch.save(FRNet.state_dict(), os.path.join('.', opt.checkpoints_dir, opt.name, 'FRNet_best.pth'))
+                    _save_checkpoints(opt, model, "best")
 
         # decrease learning rate
         if (epoch + 1) in opt.lr_steps:
@@ -579,6 +510,31 @@ def main():
 
             if opt.rank == 0:
                 print('decreased learning rate by ', opt.decay_factor)
+
+
+def main():
+    # initialize
+    opt = _init()
+
+    # create data loader
+    data_loader = CreateDataLoader(opt)
+    if opt.validation_on:
+        opt.mode = 'val'
+        data_loader_val = CreateDataLoader(opt)
+        opt.mode = 'train'  # set it back
+
+    # create model
+    model = create_model(opt)
+
+    # create optimizer
+    optimizer = create_optimizer(model, opt)
+    # create loss
+    crit = create_loss(opt)
+    opt.window = torch.hann_window(opt.window_size).cuda()
+
+    cudnn.benchmark = True
+
+    train(opt, model, data_loader, data_loader_val, optimizer, crit)
 
 
 if __name__ == '__main__':

@@ -4,11 +4,12 @@ import argparse
 import utils
 import face_alignment
 from facenet_pytorch import MTCNN
-import torch
 import numpy as np
 import mmcv, cv2
-from mmcv import ProgressBar
+from mmengine import ProgressBar
 from PIL import Image, ImageDraw
+
+import torch
 
 
 def face2head(boxes, scale=1.5):
@@ -47,27 +48,21 @@ def bb_intersection_over_union(boxA, boxB):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--video_root', type=str, required=True)
-    parser.add_argument('--faces', type=str, required=True)
-    parser.add_argument('--filename_input', type=str, required=True)
-    parser.add_argument('--landmark', type=str, required=True)
-    parser.add_argument('--tracked_video', type=str, required=True)
+    parser.add_argument('--video_root', type=str, required=True, help="The root directory of the videos' path")
+    parser.add_argument('--faces', type=str, required=True, help="The root directory of output face videos' path")
+    parser.add_argument('--csv_root', type=str, required=True, help="The root directory of output csv file for each video")
+    parser.add_argument('--landmark', type=str, required=True, help="The root directory of output videos' path")
+    parser.add_argument('--tracked_video', type=str, required=True, help="The root directory of output tracked videos' path")
 
-    parser.add_argument('--detect_every_N_frame', type=int, default=8)
+    parser.add_argument('--detect_every_N_frame', type=int, default=8, help="detect face for every N frames")
     parser.add_argument('--scalar_face_detection', type=float, default=1.5)
-    parser.add_argument('--number_of_speakers', type=int, default=1)
+    parser.add_argument('--number_of_speakers', type=int, default=1, help="number of speakers in videos")
     args = parser.parse_args()
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print('Running on device: {}'.format(device))
-    # utils.mkdirs(os.path.join(args.faces, 'faces'))
-    # utils.mkdirs(args.faces)
-    # utils.mkdirs(args.filename_input)
-    # utils.mkdirs(args.landmark)
-    # utils.mkdirs(args.mouthroi)
-    # utils.mkdirs(args.tracked_video)
     os.makedirs(args.faces, exist_ok=True)
-    os.makedirs(args.filename_input, exist_ok=True)
+    os.makedirs(args.csv_root, exist_ok=True)
     os.makedirs(args.landmark, exist_ok=True)
     os.makedirs(args.tracked_video, exist_ok=True)
 
@@ -154,7 +149,7 @@ def main():
                     speaker_video.write(cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
                 speaker_video.release()
 
-            csvfile = open(osp.join(args.filename_input, osp.splitext(video_input)[0] + '.csv'), 'w')
+            csvfile = open(osp.join(args.csv_root, osp.splitext(video_input)[0] + '.csv'), 'w')
             for i in range(args.number_of_speakers):
                 csvfile.write('speaker' + str(i + 1) + ',0\n')
             csvfile.close()
